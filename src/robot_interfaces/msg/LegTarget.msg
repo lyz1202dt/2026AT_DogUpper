@@ -1,0 +1,9 @@
+float64 joint1_rad
+float64 joint2_rad
+float64 joint3_rad
+float64 joint1_omega
+float64 joint2_omega
+float64 joint3_omega
+float64 joint1_torque
+float64 joint2_torque
+float64 joint3_torque
