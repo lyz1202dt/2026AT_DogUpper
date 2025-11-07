@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(launch_pack)
+project(leg_driver)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -9,6 +9,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(serial REQUIRED)
+find_package(robot_interfaces REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -22,9 +25,27 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-install(
-  DIRECTORY launch
-  DESTINATION share/${PROJECT_NAME}
+add_executable(leg_driver
+  src/main.cpp
+  src/serialnode.cpp
+)
+
+
+target_include_directories(leg_driver
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/leg_driver>
+  $<INSTALL_INTERFACE:include>
+)
+
+
+ament_target_dependencies(leg_driver
+  rclcpp
+  robot_interfaces
+  serial)
+
+install(TARGETS
+leg_driver
+DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
