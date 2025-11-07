@@ -1,6 +1,6 @@
 #include "mynode.h"
 #include <chrono>
-#include "leg_interfaces/msg/leg_target.hpp"
+#include "robot_interfaces/msg/robot.hpp"
 
 
 using namespace std::chrono_literals;
@@ -8,15 +8,23 @@ using namespace std::chrono_literals;
 //初始化狗腿参数，创建发布者
 LegControl::LegControl(LegParam_t &leg_param,std::string name) :Node(name)
 {
-    //target_publisher=create_publisher<leg_interfaces::msg::LegTarget>(name+"_node",10); //创建期望位置发布者
-	rviz_joint_publisher=create_publisher<sensor_msgs::msg::JointState>("joint_states",10);
+    legs_target_pub=this->create_publisher<robot_interfaces::msg::Robot>("legs_target",10);			//创建期望位置发布者
+		// legs_state_sub should be a subscription, not a publisher
+		legs_state_sub=this->create_subscription<robot_interfaces::msg::Robot>(
+		    "legs_state", 10,
+		    [this](const robot_interfaces::msg::Robot::SharedPtr &msg) {
+				;
+		    }
+		);
+	rviz_joint_publisher=this->create_publisher<sensor_msgs::msg::JointState>("joint_states",10);
+
     time=2.01;
     update_flag=2;
     leg_run_time=2;
 
     leg=new Leg(leg_param);    //创建数学解算对象
 
-	update_timer=create_wall_timer(10ms,std::bind(&LegControl::Run_Cb,this));
+	update_timer=create_wall_timer(10ms,[this](){Run_Cb();});
 }
 
 LegControl::~LegControl()

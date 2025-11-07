@@ -3,11 +3,11 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "leg.h"
-#include "leg_driver.h"
 #include "step.h"
+#include <rclcpp/subscription.hpp>
 #include <tuple>
 #include <Eigen/Dense>
-#include "leg_interfaces/msg/leg_target.hpp"
+#include "robot_interfaces/msg/robot.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 
 class LegControl :public rclcpp::Node{
@@ -26,7 +26,8 @@ private:
     int update_flag;          //更新状态标志位
     
     rclcpp::TimerBase::SharedPtr update_timer;
-    rclcpp::Publisher<leg_interfaces::msg::LegTarget>::SharedPtr target_publisher;
+    rclcpp::Publisher<robot_interfaces::msg::Robot>::SharedPtr legs_target_pub;
+    rclcpp::Subscription<robot_interfaces::msg::Robot>::SharedPtr legs_state_sub;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr rviz_joint_publisher;
 };
 

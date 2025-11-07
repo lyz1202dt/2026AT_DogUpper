@@ -12,9 +12,9 @@ SerialNode::SerialNode()
 
     serial_thread = std::make_unique<std::thread>([this]() { serial_thread_run(); });
 
-    robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("robot_status", 10);
+    robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
     robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
-        "robot_command", 10, std::bind(&SerialNode::legs_subscrib_cb, this, std::placeholders::_1));
+        "legs_target", 10, std::bind(&SerialNode::legs_subscrib_cb, this, std::placeholders::_1));
 }
 
 SerialNode::~SerialNode() {
@@ -52,6 +52,6 @@ void SerialNode::legs_subscrib_cb(const robot_interfaces::msg::Robot& msg) {
         }
     }
     RCLCPP_INFO(this->get_logger(),"订阅到电机期望值，发送到电机");
-    serial->write((uint8_t*)legs_target, 4 * siezof(LegPack_t)); // 发送数据
+    serial->write((uint8_t*)legs_target, 4 * sizeof(LegPack_t)); // 发送数据
     serial->flush();                                             // 刷新缓冲区
 }

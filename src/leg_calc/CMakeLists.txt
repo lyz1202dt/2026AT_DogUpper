@@ -19,7 +19,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(leg_interfaces REQUIRED)
+find_package(robot_interfaces REQUIRED)
+find_package(leg_driver REQUIRED)
 
 find_package(Eigen3 REQUIRED PATHS /usr/include/eigen3)
 
@@ -50,6 +51,8 @@ target_include_directories(leg_calc
     $<INSTALL_INTERFACE:include>
 )
 
+target_link_libraries(${PROJECT_NAME} ${leg_driver_LIBRARIES})
+
 target_link_libraries(leg_calc Eigen3::Eigen)
 
 ament_target_dependencies(
@@ -60,7 +63,8 @@ ament_target_dependencies(
   visualization_msgs
   tf2
   tf2_ros
-  leg_interfaces
+  robot_interfaces
+  leg_driver
 )
 
 install(TARGETS

@@ -45,7 +45,6 @@ ament_target_dependencies(leg_driver
 
 install(TARGETS
 leg_driver
-DESTINATION lib/${PROJECT_NAME}
-)
+DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

@@ -16,6 +16,7 @@ typedef struct{
 }LegState_t;
 
 typedef struct{
+    int id;
     LegState_t leg;
 }LegPack_t;
 
