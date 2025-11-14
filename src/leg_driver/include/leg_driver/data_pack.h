@@ -16,9 +16,11 @@ typedef struct{
 }LegState_t;
 
 typedef struct{
+    unsigned int pack_id;
     int id;
     LegState_t leg;
 }LegPack_t;
+
 
 #pragma pack()
 

@@ -6,6 +6,15 @@
 
 SerialNode::SerialNode()
     : Node("driver_node") {
+    
+    for(int i=0;i<4;i++)
+    {
+        legs_state[i].pack_id=0;
+        legs_state[i].id=i;
+        legs_target[i].pack_id=0;
+        legs_target[i].id=i;
+    }
+    
     exit_thread = false;
     serial      = std::make_unique<serial::Serial>("/dev/Usbttr");
     serial->open();
@@ -27,7 +36,7 @@ void SerialNode::serial_thread_run() {
     robot_interfaces::msg::Robot msg;
     while (exit_thread == false) {
         serial->read((uint8_t*)legs_state, 4 * sizeof(LegPack_t));
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; i++) {       //按照下位机来说，应该是先发
             for (int j = 0; j < 3; j++) {
                 msg.legs[i].joints[j].rad    = legs_target[i].leg.joint[j].rad;
                 msg.legs[i].joints[j].omega  = legs_target[i].leg.joint[j].omega;
