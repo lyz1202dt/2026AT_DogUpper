@@ -1,48 +1,43 @@
 #include "serialnode.hpp"
 #include "data_pack.h"
+#include "package_comm.hpp"
 #include "robot_interfaces/msg/robot.hpp"
 #include <memory>
-#include <thread>
+
 
 SerialNode::SerialNode()
     : Node("driver_node") {
-    
-    for(int i=0;i<4;i++)
-    {
-        legs_state[i].pack_id=0;
-        legs_state[i].id=i;
-        legs_target[i].pack_id=0;
-        legs_target[i].id=i;
-    }
-    
-    exit_thread = false;
-    serial      = std::make_unique<serial::Serial>("/dev/Usbttr");
-    serial->open();
+    package_comm=std::make_unique<PackageComm>();
+    package_comm->register_recv_cb([this](const uint8_t *data,int size){
+        if(size==sizeof(LegPack_t))     //验证包长度，可以被视作四条腿的状态数据包
+        {
+            const LegPack_t *pack=reinterpret_cast<const LegPack_t*>(data);
+            if(pack->pack_type==0)  //确认包类型正确
+                publishLegState(pack);  //一旦接收，立即发布狗腿状态
+        }
 
-    serial_thread = std::make_unique<std::thread>([this]() { serial_thread_run(); });
+    });
 
     robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
     robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
-        "legs_target", 10, std::bind(&SerialNode::legs_subscrib_cb, this, std::placeholders::_1));
+        "legs_target", 10, std::bind(&SerialNode::legsSubscribCb, this, std::placeholders::_1));
 }
 
 SerialNode::~SerialNode() {
-    if (serial_thread->joinable())
-        serial_thread->join();
-    serial->close();
+
 }
 
-void SerialNode::serial_thread_run() {
+void SerialNode::publishLegState(const LegPack_t *legs_state) {
     robot_interfaces::msg::Robot msg;
     while (exit_thread == false) {
-        serial->read((uint8_t*)legs_state, 4 * sizeof(LegPack_t));
-        for (int i = 0; i < 4; i++) {       //按照下位机来说，应该是先发
+
+        for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 3; j++) {
-                msg.legs[i].joints[j].rad    = legs_target[i].leg.joint[j].rad;
-                msg.legs[i].joints[j].omega  = legs_target[i].leg.joint[j].omega;
-                msg.legs[i].joints[j].torque = legs_target[i].leg.joint[j].torque;
-                msg.legs[i].joints[j].kp     = legs_target[i].leg.joint[j].kp;
-                msg.legs[i].joints[j].kd     = legs_target[i].leg.joint[j].kd;
+                msg.legs[i].joints[j].rad    = legs_state->leg[i].joint[j].rad;
+                msg.legs[i].joints[j].omega  = legs_state->leg[i].joint[j].omega;
+                msg.legs[i].joints[j].torque = legs_state->leg[i].joint[j].torque;
+                msg.legs[i].joints[j].kp     = legs_state->leg[i].joint[j].kp;
+                msg.legs[i].joints[j].kd     = legs_state->leg[i].joint[j].kd;
             }
         }
         RCLCPP_INFO(this->get_logger(),"发布电机的期望");
@@ -50,17 +45,17 @@ void SerialNode::serial_thread_run() {
     }
 }
 
-void SerialNode::legs_subscrib_cb(const robot_interfaces::msg::Robot& msg) {
+void SerialNode::legsSubscribCb(const robot_interfaces::msg::Robot &msg) {
+    LegPack_t legs_target;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
-            legs_target[i].leg.joint[j].rad    = msg.legs[i].joints[j].rad;
-            legs_target[i].leg.joint[j].omega  = msg.legs[i].joints[j].omega;
-            legs_target[i].leg.joint[j].torque = msg.legs[i].joints[j].torque;
-            legs_target[i].leg.joint[j].kp     = msg.legs[i].joints[j].kp;
-            legs_target[i].leg.joint[j].kd     = msg.legs[i].joints[j].kd;
+            legs_target.leg[i].joint[j].rad    = msg.legs[i].joints[j].rad;
+            legs_target.leg[i].joint[j].omega  = msg.legs[i].joints[j].omega;
+            legs_target.leg[i].joint[j].torque = msg.legs[i].joints[j].torque;
+            legs_target.leg[i].joint[j].kp     = msg.legs[i].joints[j].kp;
+            legs_target.leg[i].joint[j].kd     = msg.legs[i].joints[j].kd;
         }
     }
+    package_comm->async_send_struct(legs_target);   //一旦订阅到最新的包，立即发送到下位机
     RCLCPP_INFO(this->get_logger(),"订阅到电机期望值，发送到电机");
-    serial->write((uint8_t*)legs_target, 4 * sizeof(LegPack_t)); // 发送数据
-    serial->flush();                                             // 刷新缓冲区
 }

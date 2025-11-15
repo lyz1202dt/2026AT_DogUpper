@@ -16,9 +16,8 @@ typedef struct{
 }LegState_t;
 
 typedef struct{
-    unsigned int pack_id;
-    int id;
-    LegState_t leg;
+    int pack_type;
+    LegState_t leg[4];
 }LegPack_t;
 
 

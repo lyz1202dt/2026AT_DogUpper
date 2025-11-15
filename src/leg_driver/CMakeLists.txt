@@ -10,8 +10,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(serial REQUIRED)
 find_package(robot_interfaces REQUIRED)
+
+find_package(pkgConfig REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -28,6 +29,8 @@ endif()
 add_executable(leg_driver
   src/main.cpp
   src/serialnode.cpp
+  src/usb_cdc
+  src/package_comm.cpp
 )
 
 

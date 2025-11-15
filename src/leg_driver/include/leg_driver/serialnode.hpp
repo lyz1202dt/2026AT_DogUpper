@@ -1,12 +1,15 @@
 #ifndef __SERIALNODE_HPP__
 #define __SERIALNODE_HPP__
 
+#include <memory>
+#include <mutex>
+
 #include "rclcpp/rclcpp.hpp"
 #include "robot_interfaces/msg/robot.hpp"
-#include "serial/serial.h"
 #include "data_pack.h"
-#include <memory>
-#include <thread>
+#include "package_comm.hpp"
+#include "mutex"
+
 
 class SerialNode : public rclcpp::Node
 {
@@ -14,17 +17,12 @@ public:
     SerialNode();
     ~SerialNode();
 
-    private:
+private:
     bool exit_thread;
-    void legs_subscrib_cb(const robot_interfaces::msg::Robot &msg);
-    void serial_thread_run();
+    void legsSubscribCb(const robot_interfaces::msg::Robot &msg);
+    void publishLegState(const LegPack_t *legs_state);
 
-    LegPack_t legs_target[4];
-    LegPack_t legs_state[4];
-
-    std::unique_ptr<std::thread> serial_thread;
-    std::unique_ptr<serial::Serial> serial;
-
+    std::unique_ptr<PackageComm> package_comm;
     rclcpp::Publisher<robot_interfaces::msg::Robot>::SharedPtr robot_pub;
     rclcpp::Subscription<robot_interfaces::msg::Robot>::SharedPtr robot_sub;
 };

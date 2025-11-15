@@ -21,7 +21,7 @@ public:
     ~CDCDevice();
     bool open(uint16_t vid,uint16_t pid,int interfaces_num);
     void close();
-    int send(void* data,int size,unsigned int time_out);    //异步发送数据包
+    int send(const void* data,int size,unsigned int time_out);    //异步发送数据包
     void regeiser_recv_cb(std::function<void(uint8_t* data,int size)> recv_cb);    //注册数据包接收回调
     void process_once();    //处理一次事件
 private:
