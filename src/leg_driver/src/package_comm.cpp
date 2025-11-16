@@ -33,17 +33,21 @@ PackageComm::~PackageComm() {
 bool PackageComm::async_send(const uint8_t* data, int size) {
     uint8_t temp[64];
     int pack_index = size / (64 - (int)sizeof(uint32_t)); // 计算需要发的包的数量
+    if(size % (64 - sizeof(uint32_t))==0)	//如果可以整包发完，那么不再计算空包
+		pack_index=pack_index-1;
+    
     int j=0;
     for (int i = pack_index; i >= 0; i--)                 // 填写发送缓冲区
     {
         CDC_Trans_t* trans = reinterpret_cast<CDC_Trans_t*>(temp);
-        std::memcpy(trans->data,data,size);
+        std::memcpy(trans->data,data,size>60?60:size);
         trans->pack_id = i;
         if (i == 0) {
-            cdc_device->send(data+j*(64 - (int)sizeof(uint32_t)), size % (64 - (int)sizeof(uint32_t)), 10);
+            cdc_device->send(temp, size, 10);
         }
         else {
-            cdc_device->send(data+j*(64 - (int)sizeof(uint32_t)), 64, 10);
+            cdc_device->send(temp, 64, 10);
+            size=size-60;
         }
         RCLCPP_INFO(rclcpp::get_logger("packageComm"),"分包发送%d/%d",j,pack_index);
         j++;
@@ -56,24 +60,27 @@ void PackageComm::on_recv_cdc(const uint8_t* data, int size){
     RCLCPP_INFO(rclcpp::get_logger("packageComm"),"包ID:%d,包长度%d",trans->pack_id,size);
         if (trans->pack_id) // 包ID不为0
         {
-            if (last_recv_pack_id <= trans->pack_id) // 如果当前包的ID大于等于之前包的ID，说明此时是全新的传输任务（上一个包被异常中断），将本次接收的数据包复制到用户缓冲区新位置
+            if (last_recv_pack_id <= trans->pack_id) // 如果当前包的ID大于等于之前包的ID，说明此时是全新的传输任务，将本次接收的数据包复制到用户缓冲区新位置
             {
-                recv_buffer_index = 0;
+                RCLCPP_INFO(rclcpp::get_logger("packageComm"),"缓冲区索引清零 上一个ID %d，本次ID %d",last_recv_pack_id,trans->pack_id);
+                if(size)    //有时候会有空包触发，加一个这个，如果有空包，那么不处理
+                    recv_buffer_index = 0;
             }
-            if (recv_buffer_index + size - sizeof(uint32_t) < 512)
+            if (size&&(recv_buffer_index + size - sizeof(uint32_t) < 512))
             {
-                std::memcpy(recv_buffer + recv_buffer_index, data + sizeof(uint32_t), size - sizeof(uint32_t)); // 将接收的数据包拷贝到用户缓冲区
+                std::memcpy(recv_buffer + recv_buffer_index, trans->data, size - sizeof(uint32_t)); // 将接收的数据包拷贝到用户缓冲区
                 recv_buffer_index = recv_buffer_index + size - sizeof(uint32_t);
             }
         }
         else // 包ID为0，说明本次包传输任务已经完成
         {
-            RCLCPP_INFO(rclcpp::get_logger("packageComm"),"合包完成，包长度为%d",(int)recv_buffer_index+1);
-            std::memcpy(recv_buffer + recv_buffer_index, data + sizeof(uint32_t), size - sizeof(uint32_t));
+            RCLCPP_INFO(rclcpp::get_logger("packageComm"),"关键字节序(1)%d (60)%d (100)%d ",recv_buffer[0],recv_buffer[59],recv_buffer[99]);
+            std::memcpy(recv_buffer + recv_buffer_index, trans->data, size - sizeof(uint32_t));
             recv_buffer_index = recv_buffer_index + size - sizeof(uint32_t);
-            pack_recv_cb(recv_buffer,(int)recv_buffer_index+1);
+            pack_recv_cb(recv_buffer,(recv_buffer_index+1));
             recv_buffer_index = 0;
         }
+        RCLCPP_INFO(rclcpp::get_logger("packageComm"),"缓冲区索引%d",recv_buffer_index);
         last_recv_pack_id = trans->pack_id;
 }
 

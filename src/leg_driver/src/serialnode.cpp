@@ -9,13 +9,16 @@ SerialNode::SerialNode()
     : Node("driver_node") {
     package_comm=std::make_unique<PackageComm>();
     package_comm->register_recv_cb([this](const uint8_t *data,int size){
-        if(size==sizeof(LegPack_t))     //验证包长度，可以被视作四条腿的状态数据包
+        /*if(size==sizeof(LegPack_t))     //验证包长度，可以被视作四条腿的状态数据包
         {
             const LegPack_t *pack=reinterpret_cast<const LegPack_t*>(data);
             if(pack->pack_type==0)  //确认包类型正确
                 publishLegState(pack);  //一旦接收，立即发布狗腿状态
-        }
-
+        }*/
+        /*RCLCPP_INFO(this->get_logger(),"完整的包长度%d",size);
+        RCLCPP_INFO(this->get_logger(),"第1个字节%d",(int)data[0]);
+        RCLCPP_INFO(this->get_logger(),"第65个字节%d",(int)data[64]);
+        RCLCPP_INFO(this->get_logger(),"第100个字节%d",(int)data[99]);*/
     });
 
     robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
@@ -40,7 +43,7 @@ void SerialNode::publishLegState(const LegPack_t *legs_state) {
                 msg.legs[i].joints[j].kd     = legs_state->leg[i].joint[j].kd;
             }
         }
-        RCLCPP_INFO(this->get_logger(),"发布电机的期望");
+        RCLCPP_INFO(this->get_logger(),"发布电机的当前状态");
         robot_pub->publish(msg);
     }
 }
