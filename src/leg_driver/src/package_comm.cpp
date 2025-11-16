@@ -31,26 +31,32 @@ PackageComm::~PackageComm() {
 }
 
 bool PackageComm::async_send(const uint8_t* data, int size) {
+    if(!size)
+        return false;
+
+    constexpr int PAYLOAD = 64 - sizeof(uint32_t);
+
     uint8_t temp[64];
-    int pack_index = size / (64 - (int)sizeof(uint32_t)); // 计算需要发的包的数量
-    if(size % (64 - sizeof(uint32_t))==0)	//如果可以整包发完，那么不再计算空包
-		pack_index=pack_index-1;
+    int max_pack_index = size / PAYLOAD; // 计算需要发的包
+    if(size % PAYLOAD==0)	//如果可以整包发完，那么不再计算空包
+		max_pack_index=max_pack_index-1;
     
-    int j=0;
-    for (int i = pack_index; i >= 0; i--)                 // 填写发送缓冲区
+    int remain_size=size;
+    const uint8_t* cur_p_data=data;
+    for (int i = max_pack_index; i >= 0; i--)                 // 填写发送缓冲区
     {
         CDC_Trans_t* trans = reinterpret_cast<CDC_Trans_t*>(temp);
-        std::memcpy(trans->data,data,size>60?60:size);
+        std::memcpy(trans->data,cur_p_data,remain_size>PAYLOAD?PAYLOAD:remain_size);
         trans->pack_id = i;
+
         if (i == 0) {
-            cdc_device->send(temp, size, 10);
+            cdc_device->send(temp, remain_size+4, 10);
         }
         else {
             cdc_device->send(temp, 64, 10);
-            size=size-60;
+            remain_size=remain_size-PAYLOAD;
+            cur_p_data=cur_p_data+PAYLOAD;
         }
-        RCLCPP_INFO(rclcpp::get_logger("packageComm"),"分包发送%d/%d",j,pack_index);
-        j++;
     }
     return true;
 }
