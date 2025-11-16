@@ -12,7 +12,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robot_interfaces REQUIRED)
 
-find_package(pkgConfig REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -40,11 +42,29 @@ target_include_directories(leg_driver
   $<INSTALL_INTERFACE:include>
 )
 
+# Find and link libusb (libusb-1.0) via pkg-config to resolve undefined references
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+
+target_include_directories(leg_driver
+  PUBLIC
+  ${LIBUSB_INCLUDE_DIRS}
+)
+
+target_link_directories(leg_driver
+  PUBLIC
+  ${LIBUSB_LIBRARY_DIRS}
+)
+
+target_link_libraries(leg_driver
+  ${LIBUSB_LIBRARIES}
+)
+
+
 
 ament_target_dependencies(leg_driver
   rclcpp
-  robot_interfaces
-  serial)
+  robot_interfaces)
 
 install(TARGETS
 leg_driver
