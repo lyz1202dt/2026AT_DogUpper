@@ -31,8 +31,7 @@ endif()
 add_executable(leg_driver
   src/main.cpp
   src/serialnode.cpp
-  src/usb_cdc
-  src/package_comm.cpp
+  src/cdc_trans.cpp
 )
 
 

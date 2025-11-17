@@ -1,33 +1,43 @@
 #include "serialnode.hpp"
+#include "cdc_trans.hpp"
 #include "data_pack.h"
-#include "package_comm.hpp"
 #include "robot_interfaces/msg/robot.hpp"
 #include <memory>
+#include <thread>
 
 
 SerialNode::SerialNode()
     : Node("driver_node") {
-    package_comm=std::make_unique<PackageComm>();
-    package_comm->register_recv_cb([this](const uint8_t *data,int size){
-        /*if(size==sizeof(LegPack_t))     //验证包长度，可以被视作四条腿的状态数据包
+
+    cdc_trans=std::make_unique<CDCTrans>();    //创建CDC传输对象
+
+    cdc_trans->regeiser_recv_cb([this](const uint8_t *data,int size){   //注册接收回调
+        if(size==sizeof(LegPack_t))     //验证包长度，可以被视作四条腿的状态数据包
         {
             const LegPack_t *pack=reinterpret_cast<const LegPack_t*>(data);
             if(pack->pack_type==0)  //确认包类型正确
                 publishLegState(pack);  //一旦接收，立即发布狗腿状态
-        }*/
-        /*RCLCPP_INFO(this->get_logger(),"完整的包长度%d",size);
-        RCLCPP_INFO(this->get_logger(),"第1个字节%d",(int)data[0]);
-        RCLCPP_INFO(this->get_logger(),"第65个字节%d",(int)data[64]);
-        RCLCPP_INFO(this->get_logger(),"第100个字节%d",(int)data[99]);*/
+        }
+        RCLCPP_INFO(this->get_logger(),"接收到了数据包,长度%d",size);
     });
 
+    usb_event_handle_thread=std::make_unique<std::thread>([this](){     //创建线程处理CDC消息
+        while(!exit_thread)
+            cdc_trans->process_once();
+    });
+
+    cdc_trans->open(0x0483, 0x5740, 1);         //开启USB_CDC传输接口
+
+
+
     robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
+
     robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
         "legs_target", 10, std::bind(&SerialNode::legsSubscribCb, this, std::placeholders::_1));
 }
 
 SerialNode::~SerialNode() {
-
+    cdc_trans->close();
 }
 
 void SerialNode::publishLegState(const LegPack_t *legs_state) {
@@ -59,6 +69,6 @@ void SerialNode::legsSubscribCb(const robot_interfaces::msg::Robot &msg) {
             legs_target.leg[i].joint[j].kd     = msg.legs[i].joints[j].kd;
         }
     }
-    package_comm->async_send_struct(legs_target);   //一旦订阅到最新的包，立即发送到下位机
+    cdc_trans->send_struct(legs_target);   //一旦订阅到最新的包，立即发送到下位机
     RCLCPP_INFO(this->get_logger(),"订阅到电机期望值，发送到电机");
 }

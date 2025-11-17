@@ -1,9 +1,7 @@
-#include "usb_cdc.hpp"
-#include <libusb-1.0/libusb.h>
-#include <rclcpp/logger.hpp>
-#include "rclcpp/rclcpp.hpp"
+#include "cdc_trans.hpp"
+#include <rclcpp/rclcpp.hpp>
 
-CDCDevice::CDCDevice() {
+CDCTrans::CDCTrans() {
     _disconnected     = true;
     _handling_events  = true;
     _need_reconnected = false;
@@ -11,13 +9,13 @@ CDCDevice::CDCDevice() {
     libusb_init(&ctx);
 }
 
-CDCDevice::~CDCDevice() {
+CDCTrans::~CDCTrans() {
     _handling_events = false;
     close();
     libusb_exit(ctx);
 }
 
-bool CDCDevice::open(uint16_t vid, uint16_t pid, int interfaces_num) {
+bool CDCTrans::open(uint16_t vid, uint16_t pid, int interfaces_num) {
     last_vid             = vid;
     last_pid             = pid;
     this->interfaces_num = interfaces_num;
@@ -28,7 +26,7 @@ bool CDCDevice::open(uint16_t vid, uint16_t pid, int interfaces_num) {
         RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"CDC打开失败");
         return false;
     }
-        
+    
     if (libusb_kernel_driver_active(handle, interfaces_num))
     {
         int ret=libusb_detach_kernel_driver(handle, interfaces_num);
@@ -47,7 +45,7 @@ bool CDCDevice::open(uint16_t vid, uint16_t pid, int interfaces_num) {
         recv_transfer, handle, EP_IN, reinterpret_cast<uint8_t*>(cdc_rx_buffer),
         sizeof(cdc_rx_buffer),
         [](libusb_transfer* transfer) -> void {
-            auto self = static_cast<CDCDevice*>(transfer->user_data);
+            auto self = static_cast<CDCTrans*>(transfer->user_data);
             RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"USB传输事件完成，状态%d",transfer->status);
             if (!self->_handling_events) {
                 libusb_cancel_transfer(transfer);
@@ -76,7 +74,7 @@ bool CDCDevice::open(uint16_t vid, uint16_t pid, int interfaces_num) {
             LIBUSB_HOTPLUG_NO_FLAGS, vid, pid, LIBUSB_HOTPLUG_MATCH_ANY,
             [](libusb_context* ctx, libusb_device* device, libusb_hotplug_event event,
                void* user_data) -> int {
-                static_cast<CDCDevice*>(user_data)->on_hotplug(event);
+                static_cast<CDCTrans*>(user_data)->on_hotplug(event);
                 return 0;
             },
             this, &hotplug_handle);
@@ -95,7 +93,7 @@ bool CDCDevice::open(uint16_t vid, uint16_t pid, int interfaces_num) {
     return true;
 }
 
-void CDCDevice::close() {
+void CDCTrans::close() {
     if (recv_transfer) {
         libusb_cancel_transfer(recv_transfer);
         libusb_free_transfer(recv_transfer);
@@ -108,17 +106,17 @@ void CDCDevice::close() {
     }
 }
 
-int CDCDevice::send(const void* data, int size, unsigned int time_out) {
+int CDCTrans::send(const uint8_t* data, int size, unsigned int time_out) {
     int actual_size;
     int rc = libusb_bulk_transfer(handle, EP_OUT, (uint8_t*)data, size, &actual_size, time_out);
-    RCLCPP_INFO(rclcpp::get_logger("package_comm"),"发送一个CDC包%d",rc);
+    RCLCPP_INFO(rclcpp::get_logger("package_comm"),"发送数据%d,实际传输%d,返回%d",size,actual_size,rc);
     if (rc != 0)
         return -1;
     else
         return actual_size;
 }
 
-void CDCDevice::process_once() {
+void CDCTrans::process_once() {
     timeval tv = {.tv_sec = 0, .tv_usec = 50000};   //50ms
     RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"进行一次事件处理");
     libusb_handle_events_timeout_completed(ctx, &tv, nullptr);
@@ -131,11 +129,11 @@ void CDCDevice::process_once() {
     }
 }
 
-void CDCDevice::regeiser_recv_cb(std::function<void(uint8_t* data, int size)> recv_cb) {
+void CDCTrans::regeiser_recv_cb(std::function<void(uint8_t* data, int size)> recv_cb) {
     cdc_recv_cb = std::move(recv_cb);
 }
 
-void CDCDevice::on_hotplug(libusb_hotplug_event event) {
+void CDCTrans::on_hotplug(libusb_hotplug_event event) {
     if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT) {
         _disconnected = true;
     } else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED) {
