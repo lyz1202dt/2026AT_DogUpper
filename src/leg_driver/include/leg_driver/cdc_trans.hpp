@@ -21,7 +21,7 @@ public:
     int send(const uint8_t* data, int size, unsigned int time_out=5); // 异步发送数据包
 
     void regeiser_recv_cb(
-        std::function<void(uint8_t* data, int size)> recv_cb);      // 注册数据包接收回调
+        std::function<void(const uint8_t* data, int size)> recv_cb);      // 注册数据包接收回调
 
     template <typename T>
     bool send_struct(const T& pack,unsigned int time_out=5) {
@@ -40,11 +40,11 @@ private:
 
     uint16_t last_vid, last_pid;
     int interfaces_num;
-    std::function<void(uint8_t* data, int size)> cdc_recv_cb;
+    std::function<void(const uint8_t* data, int size)> cdc_recv_cb;
     std::atomic_bool _disconnected;
     std::atomic_bool _need_reconnected;
     std::atomic_bool _handling_events;
-    std::byte cdc_rx_buffer[512];
+    uint8_t cdc_rx_buffer[2048];
     libusb_transfer* recv_transfer;
     libusb_context* ctx;
     libusb_device_handle* handle;

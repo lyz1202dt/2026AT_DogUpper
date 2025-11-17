@@ -39,10 +39,10 @@ bool CDCTrans::open(uint16_t vid, uint16_t pid, int interfaces_num) {
     // 分配异步传输结构体
     recv_transfer = libusb_alloc_transfer(0);
     RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"分配异步传输结构体，地址%p",recv_transfer);
-
+    
     // 填写异步传输结构体参数
     libusb_fill_bulk_transfer(
-        recv_transfer, handle, EP_IN, reinterpret_cast<uint8_t*>(cdc_rx_buffer),
+        recv_transfer, handle, EP_IN, cdc_rx_buffer,
         sizeof(cdc_rx_buffer),
         [](libusb_transfer* transfer) -> void {
             auto self = static_cast<CDCTrans*>(transfer->user_data);
@@ -129,7 +129,7 @@ void CDCTrans::process_once() {
     }
 }
 
-void CDCTrans::regeiser_recv_cb(std::function<void(uint8_t* data, int size)> recv_cb) {
+void CDCTrans::regeiser_recv_cb(std::function<void(const uint8_t* data, int size)> recv_cb) {
     cdc_recv_cb = std::move(recv_cb);
 }
 
