@@ -1,4 +1,5 @@
 #include "cdc_trans.hpp"
+#include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 CDCTrans::CDCTrans() {
@@ -15,30 +16,31 @@ CDCTrans::~CDCTrans() {
     libusb_exit(ctx);
 }
 
-bool CDCTrans::open(uint16_t vid, uint16_t pid, int interfaces_num) {
+bool CDCTrans::open(uint16_t vid, uint16_t pid ){
     last_vid             = vid;
     last_pid             = pid;
-    this->interfaces_num = interfaces_num;
+    this->interfaces_num = 1;
     handle = libusb_open_device_with_vid_pid(ctx, vid, pid);
     RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"尝试打开USB-CDC设备");
     if (!handle)
     {
-        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"USB-CDC打开失败");
+        RCLCPP_WARN(rclcpp::get_logger("cdc_device"),"USB-CDC打开失败");
         return false;
     }
     
-    if (libusb_kernel_driver_active(handle, interfaces_num))
+    if (libusb_kernel_driver_active(handle, 1))
     {
-        int ret=libusb_detach_kernel_driver(handle, interfaces_num);
-        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"从系统内核卸载USB设备，返回%d",ret);
+        int ret=libusb_detach_kernel_driver(handle, 1);
+        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"从系统内核卸载USB设备接口1，返回%d",ret);
     }
     
-    int ret=libusb_claim_interface(handle, interfaces_num); // 获取通道1
+    int ret=libusb_claim_interface(handle, 1); // 获取通道1
     RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"获取CDC设备通道1，返回%d",ret);
+
 
     // 分配异步传输结构体
     recv_transfer = libusb_alloc_transfer(0);
-    RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"分配异步传输结构体，地址%p",recv_transfer);
+    RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"分配异步传输结构体，地址%p",(void*)recv_transfer);
     
     // 填写异步传输结构体参数
     libusb_fill_bulk_transfer(
@@ -84,7 +86,7 @@ bool CDCTrans::open(uint16_t vid, uint16_t pid, int interfaces_num) {
 
     // 提交异步接收请求
     if (libusb_submit_transfer(recv_transfer) != 0) {
-        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"请求执行数据接收");
+        RCLCPP_WARN(rclcpp::get_logger("cdc_device"),"请求执行数据接收失败");
     }
 
     _disconnected     = false;
@@ -108,10 +110,14 @@ void CDCTrans::close() {
 
 int CDCTrans::send(const uint8_t* data, int size, unsigned int time_out) {
     int actual_size;
+    if(_disconnected)
+        return -2;
     int rc = libusb_bulk_transfer(handle, EP_OUT, (uint8_t*)data, size, &actual_size, time_out);
-    RCLCPP_INFO(rclcpp::get_logger("package_comm"),"发送数据%d,实际传输%d,返回%d",size,actual_size,rc);
     if (rc != 0)
+    {
+        RCLCPP_WARN(rclcpp::get_logger("package_comm"),"发送失败:发送数据%d,实际传输%d,返回%d",size,actual_size,rc);
         return -1;
+    }
     else
         return actual_size;
 }
@@ -125,7 +131,7 @@ void CDCTrans::process_once() {
     }
     if (_need_reconnected) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        open(last_vid, last_pid, interfaces_num);
+        open(last_vid, last_pid);
     }
 }
 

@@ -14,7 +14,7 @@ public:
 
     ~CDCTrans();
 
-    bool open(uint16_t vid, uint16_t pid, int interfaces_num);
+    bool open(uint16_t vid, uint16_t pid);
 
     void close();
 

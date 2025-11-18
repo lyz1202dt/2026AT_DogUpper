@@ -4,6 +4,8 @@
 #include <robot_interfaces/msg/robot.hpp>
 #include <memory>
 #include <thread>
+#include <chrono>
+using namespace std::chrono_literals;
 
 SerialNode::SerialNode()
     : Node("driver_node") {
@@ -11,8 +13,14 @@ SerialNode::SerialNode()
     // 初始化状态
     exit_thread = false;
 
-    cdc_trans = std::make_unique<CDCTrans>();                           // 创建CDC传输对象
+    // 先创建 publisher/subscriber，确保回调中 publish 时 publisher 已就绪
+    robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
 
+    robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
+        "legs_target", 10, std::bind(&SerialNode::legsSubscribCb, this, std::placeholders::_1));
+
+
+    cdc_trans = std::make_unique<CDCTrans>();                           // 创建CDC传输对象
     cdc_trans->regeiser_recv_cb([this](const uint8_t* data, int size) { // 注册接收回调
         RCLCPP_INFO(this->get_logger(), "接收到了数据包,长度%d", size);
         if (size == sizeof(LegPack_t)) // 验证包长度，可以被视作四条腿的状态数据包
@@ -22,20 +30,24 @@ SerialNode::SerialNode()
                 publishLegState(pack); // 一旦接收，立即发布狗腿状态
         }
     });
-
-    // 先创建 publisher/subscriber，确保回调中 publish 时 publisher 已就绪
-    robot_pub = this->create_publisher<robot_interfaces::msg::Robot>("legs_status", 10);
-
-    robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
-        "legs_target", 10, std::bind(&SerialNode::legsSubscribCb, this, std::placeholders::_1));
-
-    if(!cdc_trans->open(0x0483, 0x5740, 1))                                // 开启USB_CDC传输接口
+    if(!cdc_trans->open(0x0483, 0x5740))                                // 开启USB_CDC传输接口
         exit_thread=true;
 
     // 创建线程处理CDC消息（在 open 之后、publisher 创建之后）
     usb_event_handle_thread = std::make_unique<std::thread>([this]() {
         do{
             cdc_trans->process_once();
+        }while (!exit_thread);
+    });
+
+
+    target_send_thread=std::make_unique<std::thread>([this](){
+        do{
+            auto now = std::chrono::system_clock::now();
+            //调试
+            legs_target.leg[2].joint[2].kd=0.05f;
+            cdc_trans->send_struct(legs_target);
+            std::this_thread::sleep_until(now + 5ms);
         }while (!exit_thread);
     });
 }
@@ -45,6 +57,9 @@ SerialNode::~SerialNode() {
     exit_thread = true;
     if (usb_event_handle_thread && usb_event_handle_thread->joinable()) {
         usb_event_handle_thread->join();
+    }
+    if(target_send_thread&&target_send_thread->joinable()){
+        target_send_thread->join();
     }
     if (cdc_trans) {
         cdc_trans->close();
@@ -64,15 +79,10 @@ void SerialNode::publishLegState(const LegPack_t* legs_state) {
             RCLCPP_INFO(this->get_logger(),"腿%d-关节%d-位置%f",i,j,legs_state->leg[i].joint[j].rad);
         }
     }
-    if (robot_pub) {
-        robot_pub->publish(msg);
-    } else {
-        RCLCPP_WARN(this->get_logger(), "robot_pub is not initialized, skipping publish");
-    }
+    robot_pub->publish(msg);
 }
 
 void SerialNode::legsSubscribCb(const robot_interfaces::msg::Robot& msg) {
-    LegPack_t legs_target;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             legs_target.leg[i].joint[j].rad    = msg.legs[i].joints[j].rad;
@@ -82,6 +92,6 @@ void SerialNode::legsSubscribCb(const robot_interfaces::msg::Robot& msg) {
             legs_target.leg[i].joint[j].kd     = msg.legs[i].joints[j].kd;
         }
     }
-    cdc_trans->send_struct(legs_target); // 一旦订阅到最新的包，立即发送到下位机
-    RCLCPP_INFO(this->get_logger(), "订阅到电机期望值，发送到电机");
+    //cdc_trans->send_struct(legs_target); // 一旦订阅到最新的包，立即发送到下位机
+    RCLCPP_INFO(this->get_logger(), "订阅到电机期望值");
 }
