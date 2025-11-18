@@ -23,7 +23,7 @@ bool CDCTrans::open(uint16_t vid, uint16_t pid, int interfaces_num) {
     RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"尝试打开USB-CDC设备");
     if (!handle)
     {
-        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"CDC打开失败");
+        RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"USB-CDC打开失败");
         return false;
     }
     

@@ -1,7 +1,7 @@
 #include "serialnode.hpp"
 #include "cdc_trans.hpp"
 #include "data_pack.h"
-#include "robot_interfaces/msg/robot.hpp"
+#include <robot_interfaces/msg/robot.hpp>
 #include <memory>
 #include <thread>
 
@@ -29,13 +29,14 @@ SerialNode::SerialNode()
     robot_sub = this->create_subscription<robot_interfaces::msg::Robot>(
         "legs_target", 10, std::bind(&SerialNode::legsSubscribCb, this, std::placeholders::_1));
 
-    cdc_trans->open(0x0483, 0x5740, 1);                                // 开启USB_CDC传输接口
+    if(!cdc_trans->open(0x0483, 0x5740, 1))                                // 开启USB_CDC传输接口
+        exit_thread=true;
 
     // 创建线程处理CDC消息（在 open 之后、publisher 创建之后）
     usb_event_handle_thread = std::make_unique<std::thread>([this]() {
-        while (!exit_thread) {
+        do{
             cdc_trans->process_once();
-        }
+        }while (!exit_thread);
     });
 }
 
@@ -52,6 +53,7 @@ SerialNode::~SerialNode() {
 
 void SerialNode::publishLegState(const LegPack_t* legs_state) {
     robot_interfaces::msg::Robot msg;
+    RCLCPP_INFO(this->get_logger(), "发布电机的当前状态");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             msg.legs[i].joints[j].rad    = legs_state->leg[i].joint[j].rad;
@@ -59,9 +61,9 @@ void SerialNode::publishLegState(const LegPack_t* legs_state) {
             msg.legs[i].joints[j].torque = legs_state->leg[i].joint[j].torque;
             msg.legs[i].joints[j].kp     = legs_state->leg[i].joint[j].kp;
             msg.legs[i].joints[j].kd     = legs_state->leg[i].joint[j].kd;
+            RCLCPP_INFO(this->get_logger(),"腿%d-关节%d-位置%f",i,j,legs_state->leg[i].joint[j].rad);
         }
     }
-    RCLCPP_INFO(this->get_logger(), "发布电机的当前状态");
     if (robot_pub) {
         robot_pub->publish(msg);
     } else {
