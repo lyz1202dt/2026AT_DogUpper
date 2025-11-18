@@ -48,7 +48,7 @@ bool CDCTrans::open(uint16_t vid, uint16_t pid ){
         sizeof(cdc_rx_buffer),
         [](libusb_transfer* transfer) -> void {
             auto self = static_cast<CDCTrans*>(transfer->user_data);
-            RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"USB传输事件完成，状态%d",transfer->status);
+            //RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"USB传输事件完成，状态%d",transfer->status);
             if (!self->_handling_events) {
                 libusb_cancel_transfer(transfer);
                 return;
@@ -124,7 +124,7 @@ int CDCTrans::send(const uint8_t* data, int size, unsigned int time_out) {
 
 void CDCTrans::process_once() {
     timeval tv = {.tv_sec = 0, .tv_usec = 50000};   //50ms
-    RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"进行一次事件处理");
+    //RCLCPP_INFO(rclcpp::get_logger("cdc_device"),"进行一次事件处理");
     libusb_handle_events_timeout_completed(ctx, &tv, nullptr);
     if (_disconnected) {
         close();

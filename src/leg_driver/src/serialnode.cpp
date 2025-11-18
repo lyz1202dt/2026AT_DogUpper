@@ -22,7 +22,7 @@ SerialNode::SerialNode()
 
     cdc_trans = std::make_unique<CDCTrans>();                           // 创建CDC传输对象
     cdc_trans->regeiser_recv_cb([this](const uint8_t* data, int size) { // 注册接收回调
-        RCLCPP_INFO(this->get_logger(), "接收到了数据包,长度%d", size);
+        //RCLCPP_INFO(this->get_logger(), "接收到了数据包,长度%d", size);
         if (size == sizeof(LegPack_t)) // 验证包长度，可以被视作四条腿的状态数据包
         {
             const LegPack_t* pack = reinterpret_cast<const LegPack_t*>(data);
@@ -47,7 +47,7 @@ SerialNode::SerialNode()
             //调试
             legs_target.leg[2].joint[2].kd=0.05f;
             cdc_trans->send_struct(legs_target);
-            std::this_thread::sleep_until(now + 5ms);
+            std::this_thread::sleep_until(now + 8ms);
         }while (!exit_thread);
     });
 }
@@ -68,7 +68,7 @@ SerialNode::~SerialNode() {
 
 void SerialNode::publishLegState(const LegPack_t* legs_state) {
     robot_interfaces::msg::Robot msg;
-    RCLCPP_INFO(this->get_logger(), "发布电机的当前状态");
+    RCLCPP_INFO(this->get_logger(), "发布电机当前状态");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             msg.legs[i].joints[j].rad    = legs_state->leg[i].joint[j].rad;
@@ -93,5 +93,5 @@ void SerialNode::legsSubscribCb(const robot_interfaces::msg::Robot& msg) {
         }
     }
     //cdc_trans->send_struct(legs_target); // 一旦订阅到最新的包，立即发送到下位机
-    RCLCPP_INFO(this->get_logger(), "订阅到电机期望值");
+    RCLCPP_INFO(this->get_logger(), "订阅到电机实际目标值");
 }
