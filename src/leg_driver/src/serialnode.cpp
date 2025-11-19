@@ -68,7 +68,7 @@ SerialNode::~SerialNode() {
 
 void SerialNode::publishLegState(const LegPack_t* legs_state) {
     robot_interfaces::msg::Robot msg;
-    RCLCPP_INFO(this->get_logger(), "发布电机当前状态");
+    //RCLCPP_INFO(this->get_logger(), "发布电机当前状态");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             msg.legs[i].joints[j].rad    = legs_state->leg[i].joint[j].rad;
@@ -76,7 +76,7 @@ void SerialNode::publishLegState(const LegPack_t* legs_state) {
             msg.legs[i].joints[j].torque = legs_state->leg[i].joint[j].torque;
             msg.legs[i].joints[j].kp     = legs_state->leg[i].joint[j].kp;
             msg.legs[i].joints[j].kd     = legs_state->leg[i].joint[j].kd;
-            RCLCPP_INFO(this->get_logger(),"腿%d-关节%d-位置%f",i,j,legs_state->leg[i].joint[j].rad);
+            //RCLCPP_INFO(this->get_logger(),"腿%d-关节%d-位置%f",i,j,legs_state->leg[i].joint[j].rad);
         }
     }
     robot_pub->publish(msg);

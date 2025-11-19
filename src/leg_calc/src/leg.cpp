@@ -1,20 +1,8 @@
 #include "leg.h"
 
-void Leg::SetMotorState(const std::tuple<Vector3D,Vector3D,Vector3D> &state)
+void Leg::setJointCurrentRad(const Vector3D &rad)
 {
-    SetMotorState(std::get<0>(state),std::get<1>(state),std::get<2>(state));
-}
-
-void Leg::MathReset(void)
-{
-    param_calculated=0;
-}
-
-void Leg::SetMotorState(const Vector3D &angle,const Vector3D &omega,const Vector3D &torque)     //接收输入并计算雅可比矩阵
-{
-    cur_joint_pos=angle;
-    cur_joint_vel=omega;
-    cur_joint_tor=torque;
+    cur_joint_pos=rad;
     
     double s1 = std::sin(cur_joint_pos[0]);
     double c1 = std::cos(cur_joint_pos[0]);
@@ -39,19 +27,64 @@ void Leg::SetMotorState(const Vector3D &angle,const Vector3D &omega,const Vector
     l3*(c2*s1*s3 + c3*s1*s2) + d2*c1 + l2*s1*s2, - l3*(c1*c2*c3 - c1*s2*s3) - l2*c1*c2  , -l3*(c1*c2*c3 - c1*s2*s3),
     d2*s1 - l3*(c1*c2*s3 + c1*c3*s2) - l2*c1*s2,   l3*(s1*s2*s3 - c2*c3*s1) - l2*c2*s1  ,  l3*(s1*s2*s3 - c2*c3*s1),
     0.0                                        ,  - l3*(c2*s3 + c3*s2) - l2*s2          , -l3*(c2*s3 + c3*s2);
-    //clang-format on
+    //clangd-format on
+
+    cur_rad_is_update=true;
 }
 
-void Leg::SetLegTarget(const Vector3D &pos,const Vector3D &vel,const Vector3D &acc,const Vector3D &F)   //设置腿的期望，并将期望转移到腿基坐标系下
+void Leg::setJointCurrentOmega(const Vector3D &omega)
+{
+    cur_joint_vel=omega;
+    cur_omega_is_update=true;
+}
+
+void Leg::setJointCurrentTorque(const Vector3D &torque)
+{
+    cur_joint_tor=torque;
+    cur_torque_is_update=true;
+}
+
+void Leg::setLegExptPos(const Vector3D &pos)           //设置关节当前的位置/角速度/力矩
 {
     Eigen::Vector4d temp=param.T_GndToBase.inverse()*pos.homogeneous();
     exp_cart_pos=Vector3D(temp[0],temp[1],temp[2]);
+    exp_pos_is_update=true;
+}
+void Leg::setLegExpVel(const Vector3D &vel)
+{
     exp_cart_vel=param.R_GndToBase.transpose()*vel;
-    exp_cart_acc=param.R_GndToBase.transpose()*acc;
-    exp_cart_for=param.R_GndToBase.transpose()*F;
+    exp_vel_is_update=true;
 }
 
-Vector3D Leg::CalculateJointPosition(bool *arrivable)
+void Leg::setLegExpAcc(const Vector3D &acc)
+{
+    exp_cart_acc=param.R_GndToBase.transpose()*acc;
+    exp_vel_is_update=true;
+}
+    
+void Leg::setLegExpForce(const Vector3D &force)
+{
+    exp_cart_for=param.R_GndToBase.transpose()*force;
+    exp_force_is_update=true;
+}
+
+void Leg::MathReset()
+{
+    exp_pos_is_update=false;
+    exp_vel_is_update=false;
+    exp_force_is_update=false;
+    exp_acc_is_update=false;
+
+    exp_rad_is_update=false;
+    exp_omega_is_update=false;
+    exp_torque_is_update=false;
+
+    cur_rad_is_update=false;
+    cur_omega_is_update=false;
+    cur_torque_is_update=false;
+}
+
+Vector3D Leg::calculateExpJointRad(bool *arrivable)
 {
     double dis2 = exp_cart_pos[0] * exp_cart_pos[0] + exp_cart_pos[1] * exp_cart_pos[1] - param.d2 * param.d2;
     if (dis2 < 0)
@@ -80,22 +113,22 @@ Vector3D Leg::CalculateJointPosition(bool *arrivable)
 
     *arrivable=true;
 
-    param_calculated=param_calculated|FINISH_EXP_POS_CALC;
+    exp_rad_is_update=true;
 
     return exp_joint_pos;
 }
 
-Vector3D Leg::CalculateJointOmega(void)
+Vector3D Leg::calculateExpJointOmega()
 {
-    if(!(param_calculated&FINISH_EXP_POS_CALC))     //如果之前没有计算过位置，那么计算一次关节期望位置
+    if(!exp_rad_is_update)     //如果之前没有计算过位置，那么计算一次关节期望位置
     {
         bool arrivalbe=false;
-        CalculateJointPosition(&arrivalbe);
+        calculateExpJointRad(&arrivalbe);
         if(!arrivalbe)
             return Vector3D(0.0,0.0,0.0);
     }
 
-    if(param_calculated&FINISH_EXP_VEL_CALC)    //之前被调用过
+    if(exp_omega_is_update)    //之前被调用过，那么立即返回
         return exp_joint_vel;
 
     double s1 = std::sin(exp_joint_pos[0]);
@@ -118,19 +151,17 @@ Vector3D Leg::CalculateJointOmega(void)
 
     exp_joint_vel = jocabain_exp_pos.ldlt().solve(exp_cart_vel); // 求得关节空间角速度
 
-    param_calculated=param_calculated|FINISH_EXP_VEL_CALC;
-
     return exp_joint_vel;
 }
 
-Vector3D Leg::CalculateJointTorque(void)
+Vector3D Leg::calculateExpJointTorque()
 {
-    if(!(param_calculated&FINISH_EXP_VEL_CALC))     //如果之前没有计算过速度，那么计算一次关节期望速度
+    if(!exp_omega_is_update)     //如果之前没有计算过速度，那么计算一次关节期望速度
     {
-        CalculateJointOmega();
+        calculateExpJointOmega();
     }
 
-    if(param_calculated&FINISH_EXP_TOR_CALC)
+    if(exp_force_is_update)
         return exp_joint_tor;
 
     double s1 = std::sin(exp_joint_pos[0]);
@@ -218,27 +249,26 @@ Vector3D Leg::CalculateJointTorque(void)
 
     exp_joint_tor << n1.transpose().dot(vz) , n2.transpose().dot(vz), n3.transpose().dot(vz);
 
-    param_calculated=param_calculated|FINISH_EXP_TOR_CALC;
+    exp_torque_is_update=true;
 
     return exp_joint_tor;
 }
 
-Vector3D Leg::CalculateFootForce(void)
-{
-    if(!(param_calculated&FINISH_EXP_TOR_CALC))     //如果之前没计算过足端期望力矩，那么计算一次足端力矩
-        CalculateJointTorque();
-    cur_cart_for=jocabain_cur_pos.transpose().ldlt().solve(cur_joint_tor - exp_joint_tor);
-    return param.R_GndToBase*cur_cart_for;  //将坐标系转为支撑相中性点坐标系
-}
-
-Vector3D Leg::CalculateFootVelocity(void)
-{
-    return param.R_GndToBase*(jocabain_cur_pos*cur_joint_vel);  //将坐标系转为支撑相中性点坐标系
-}
-
-Vector3D Leg::CalculateFootPosition(void)
+Vector3D Leg::calculateCurFootPosition()
 {
     Eigen::Vector4d result=param.T_GndToBase*cur_cart_pos.homogeneous();
     return Vector3D(result[0],result[1],result[2]);
 }
 
+Vector3D Leg::calculateCurFootVelocity()
+{
+    return param.R_GndToBase*(jocabain_cur_pos*cur_joint_vel);  //将坐标系转为支撑相中性点坐标系
+}
+
+Vector3D Leg::calculateCurFootForce()
+{
+    if(exp_torque_is_update)     //如果之前没计算过足端期望力矩，那么计算一次足端力矩，用于传感足端真实受力
+        calculateExpJointTorque();
+    cur_cart_for=jocabain_cur_pos.transpose().ldlt().solve(cur_joint_tor - exp_joint_tor);
+    return param.R_GndToBase*cur_cart_for;  //将坐标系转为支撑相中性点坐标系
+}

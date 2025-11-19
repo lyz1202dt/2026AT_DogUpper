@@ -43,19 +43,26 @@ class Leg{
     static constexpr char FINISH_CUR_TOR_CALC=0x40;
     
     Leg(LegParam_t &arg):param(arg) {}
-    void SetMotorState(const std::tuple<Vector3D,Vector3D,Vector3D> &state);
-    void SetMotorState(const Vector3D &angle,const Vector3D &omega,const Vector3D &torque);      //根据硬件读取到的数据设置该腿3个关节电机当前的角度，角速度，力矩
-    void SetLegTarget(const Vector3D &pos,const Vector3D &vel,const Vector3D &acc,const Vector3D &F);   //设置狗腿的期望
-    Vector3D CalculateJointPosition(bool *arrivable);   //计算关节位置，并存储关节空间期望角度
-    Vector3D CalculateJointOmega(void);                 //计算关节角速度，并存储对位置求导的雅可比矩阵
-    Vector3D CalculateJointTorque(void);                //计算关节力矩（求出角加速度后，使用牛顿欧拉方程递推）
-    Vector3D CalculateFootForce(void);                  //观测足端受力，用于VMC控制
-    Vector3D CalculateFootVelocity(void);               //观测足端速度，用于VMC控制
-    Vector3D CalculateFootPosition(void);               //观测足端位置，用于VMC控制
 
-    void MathReset(void);
-private:
-    char param_calculated;
+    void setJointCurrentRad(const Vector3D &rad);           //设置关节当前的位置/角速度/力矩
+    void setJointCurrentOmega(const Vector3D &omega);
+    void setJointCurrentTorque(const Vector3D &torque);
+
+    void setLegExptPos(const Vector3D&pos);                 //设置狗腿当前的位置/速度/力
+    void setLegExpVel(const Vector3D &vel);
+    void setLegExpAcc(const Vector3D &acc);
+    void setLegExpForce(const Vector3D &force);
+    
+    Vector3D calculateExpJointRad(bool *arrivable);     //根据期望位置计算期望关节角度
+    Vector3D calculateExpJointOmega();                  //根据期望角速度计算期望关节角速度
+    Vector3D calculateExpJointTorque();                 //根据期望足端力矩计算关节期望力矩
+    
+    Vector3D calculateCurFootPosition();
+    Vector3D calculateCurFootVelocity();
+    Vector3D calculateCurFootForce();
+
+    void MathReset();
+
 
     LegParam_t param;               //狗腿机械结构参数
 
@@ -78,6 +85,21 @@ private:
 
     Eigen::Matrix3d jocabain_exp_pos;   //期望位置映射的雅可比矩阵
     Eigen::Matrix3d jocabain_cur_pos;   //实际位置映射的雅可比矩阵
+
+    
+private:
+    bool exp_pos_is_update;
+    bool exp_vel_is_update;
+    bool exp_force_is_update;
+    bool exp_acc_is_update;
+
+    bool exp_rad_is_update;
+    bool exp_omega_is_update;
+    bool exp_torque_is_update;
+
+    bool cur_rad_is_update;
+    bool cur_omega_is_update;
+    bool cur_torque_is_update;
 };
 
 

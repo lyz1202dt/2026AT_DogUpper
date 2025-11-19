@@ -1,6 +1,7 @@
 <robot name="left_back_leg">
-
-    <link name="base_link">
+    <link name="world"/>
+    
+    <link name="link0">
         <visual>
             <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
             <geometry>
@@ -81,9 +82,15 @@
         </visual>
     </link>
 
+    <joint name="joint0" type="fixed">
+        <origin xyz="0.115 -0.108 0.32" rpy="1.5708 1.5708 -1.5708"/>
+        <parent link="world"/>
+        <child link="link0"/>
+    </joint>
+
     <joint name="joint1" type="revolute">
         <origin xyz="0.0 0.0 0.049" rpy="0.0 0.0 0.0"/>
-        <parent link="base_link"/>
+        <parent link="link0"/>
         <child link="link1"/>
         <axis xyz="0.0 0.0 1.0"/>
         <limit lower="-3.14159265" upper="3.14159265" effort="10.0" velocity="1.0"/>
