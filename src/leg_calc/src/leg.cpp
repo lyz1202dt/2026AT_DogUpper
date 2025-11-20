@@ -103,7 +103,7 @@ Vector3D Leg::calculateExpJointRad(bool *arrivable)
         return cur_joint_pos;
     }
     
-    double q1=std::atan2(exp_cart_pos[1], exp_cart_pos[0]) - std::asin(param.d2/std::sqrt(exp_cart_pos[0] * exp_cart_pos[0] + exp_cart_pos[1] * exp_cart_pos[1])); // 末端目标点只会在x大于0的象限，并且由于角度限制不会到另一侧
+    double q1=std::atan2(exp_cart_pos[1], exp_cart_pos[0]) + std::asin(param.d2/std::sqrt(exp_cart_pos[0] * exp_cart_pos[0] + exp_cart_pos[1] * exp_cart_pos[1])); // 末端目标点只会在x大于0的象限，并且由于角度限制不会到另一侧
     double q3 = std::acos(temp);
     if (q3 > 0.0) // 因为机械结构角度限制，只有q3角度小于0时，才是可达的
         q3 = -q3;

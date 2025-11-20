@@ -5,7 +5,7 @@ void LeftBackLegParamInit(LegParam_t *leg_param)
 { 
 	leg_param->l0=0.049f;
     leg_param->l1=0.066f;              //电机1旋转平面到电机2旋转中心的距离
-    leg_param->d2=-0.108f;              //关节3到关节2的z轴距离
+    leg_param->d2=0.108f;              //关节3到关节2的z轴距离
     leg_param->l2=0.227f;              //关节3到关节2的x轴距离
     leg_param->l3=0.246f;              //足端到关节3的距离
 
