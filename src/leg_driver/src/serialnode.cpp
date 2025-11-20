@@ -45,7 +45,7 @@ SerialNode::SerialNode()
         do{
             auto now = std::chrono::system_clock::now();
             //调试
-            legs_target.leg[2].joint[2].kd=0.05f;
+            //legs_target.leg[2].joint[2].kd=0.05f;
             cdc_trans->send_struct(legs_target);
             std::this_thread::sleep_until(now + 8ms);
         }while (!exit_thread);

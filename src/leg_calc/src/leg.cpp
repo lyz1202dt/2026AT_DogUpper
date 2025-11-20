@@ -78,10 +78,6 @@ void Leg::MathReset()
     exp_rad_is_update=false;
     exp_omega_is_update=false;
     exp_torque_is_update=false;
-
-    cur_rad_is_update=false;
-    cur_omega_is_update=false;
-    cur_torque_is_update=false;
 }
 
 Vector3D Leg::calculateExpJointRad(bool *arrivable)
