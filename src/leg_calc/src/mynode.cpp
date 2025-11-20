@@ -50,12 +50,12 @@ void LegControl::Run_Cb() {
     if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
     {
         step_update_flag=true;
-        UpdateGndStepLine(Vector3D(0.05,0.00,0.0), Vector2D(0.1, 0.05), &trajectory,leg_run_time);
+        UpdateGndStepLine(Vector3D(0.05,0.00,0.0), Vector2D(0.1, 0.0), &trajectory,leg_run_time);
     }
     else if(step_update_flag&&cur_time>=leg_run_time*0.5)   //如果支撑相走完，在摆动相开始时时再根据当前状态规划一次步态
     {
         step_update_flag=false;
-        UpdateAirStepLine(Vector3D(-0.05,0.00,0.0), Vector3D(-0.05,0.0,0.0), Vector2D(0.1, 0.05), &trajectory,leg_run_time,0.1f);
+        UpdateAirStepLine(Vector3D(-0.05,0.00,0.0), Vector3D(-0.05,0.0,0.0), Vector2D(0.1, 0.00), &trajectory,leg_run_time,0.1f);
     }
 
     auto leg_cart_target = GetLegTarget(cur_time, trajectory);
@@ -68,7 +68,7 @@ void LegControl::Run_Cb() {
     {
         RCLCPP_WARN(this->get_logger(), "足端期望位置不可达");
     }
-    RCLCPP_INFO(this->get_logger(),"足端位置:(%f,%f,%f)",std::get<0>(leg_cart_target)[0],std::get<0>(leg_cart_target)[1],std::get<0>(leg_cart_target)[2]);
+    //RCLCPP_INFO(this->get_logger(),"足端位置:(%f,%f,%f)",std::get<0>(leg_cart_target)[0],std::get<0>(leg_cart_target)[1],std::get<0>(leg_cart_target)[2]);
     
     // 发布标记表示期望的足端位置
     visualization_msgs::msg::Marker marker;
@@ -84,13 +84,13 @@ void LegControl::Run_Cb() {
     //marker.pose.position.y = std::get<0>(leg_cart_target)[1];
     //marker.pose.position.z = std::get<0>(leg_cart_target)[2];
 
-    //auto leg_cur_cart_posleg->calculateCurFootPosition();
+    auto leg_cur_cart_pos=leg->cur_cart_pos;
     
-    marker.pose.position.x = leg->exp_cart_pos[0];
-    marker.pose.position.y = leg->exp_cart_pos[1];
-    marker.pose.position.z = leg->exp_cart_pos[2];
+    marker.pose.position.x = leg_cur_cart_pos[0];
+    marker.pose.position.y = leg_cur_cart_pos[1];
+    marker.pose.position.z = leg_cur_cart_pos[2];
     //RCLCPP_INFO(this->get_logger(),"关节期望角度%f,%f,%f",leg_joint_target[0],leg_joint_target[1],leg_joint_target[2]);
-    //RCLCPP_INFO(this->get_logger(),"关节实际角度%f,%f,%f",leg->cur_joint_pos[0],leg->cur_joint_pos[1],leg->cur_joint_pos[2]);
+    RCLCPP_INFO(this->get_logger(),"关节实际角度%f,%f,%f",leg->cur_joint_pos[0],leg->cur_joint_pos[1],leg->cur_joint_pos[2]);
 
     // 设置球体的尺寸
     marker.scale.x = 0.1;
