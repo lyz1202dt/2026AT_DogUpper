@@ -145,7 +145,7 @@ Vector3D Leg::calculateExpJointOmega()
     d2*s1 - l3*(c1*c2*s3 + c1*c3*s2) - l2*c1*s2,   l3*(s1*s2*s3 - c2*c3*s1) - l2*c2*s1  ,  l3*(s1*s2*s3 - c2*c3*s1),
     0.0                                        ,  - l3*(c2*s3 + c3*s2) - l2*s2          , -l3*(c2*s3 + c3*s2);
 
-    exp_joint_vel = jocabain_exp_pos.ldlt().solve(exp_cart_vel); // 求得关节空间角速度
+    exp_joint_vel = jocabain_exp_pos.inverse()*exp_cart_vel; // 求得关节空间角速度
 
     return exp_joint_vel;
 }
@@ -263,8 +263,8 @@ Vector3D Leg::calculateCurFootVelocity()
 
 Vector3D Leg::calculateCurFootForce()
 {
-    if(exp_torque_is_update)     //如果之前没计算过足端期望力矩，那么计算一次足端力矩，用于传感足端真实受力
-        calculateExpJointTorque();
-    cur_cart_for=jocabain_cur_pos.transpose().ldlt().solve(cur_joint_tor - exp_joint_tor);
+    /*if(exp_torque_is_update)     //如果之前没计算过足端期望力矩，那么计算一次足端力矩，用于传感足端真实受力
+        calculateExpJointTorque();*/
+    cur_cart_for=jocabain_cur_pos.transpose().inverse()*(cur_joint_tor/* - exp_joint_tor*/);
     return param.R_GndToBase*cur_cart_for;  //将坐标系转为支撑相中性点坐标系
 }

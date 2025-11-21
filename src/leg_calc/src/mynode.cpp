@@ -40,7 +40,7 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
 
     leg = new Leg(leg_param); // 创建数学解算对象
 
-    update_timer = create_wall_timer(50ms, [this]() { Run_Cb(); });
+    update_timer = create_wall_timer(100ms, [this]() { Run_Cb(); });
 }
 
 LegControl::~LegControl() { delete leg; }
@@ -76,8 +76,8 @@ void LegControl::Run_Cb() {
     
     auto leg_cart_target  = GetCycloidStep(cur_time, cycloid_step);
 
-    leg->setLegExptPos(std::get<0>(leg_cart_target)); // 设置狗腿笛卡尔空间期望位置
-    leg->setLegExpVel(std::get<1>(leg_cart_target));
+    leg->setLegExptPos(Vector3D(0.0,0.0,0.0)); // 设置狗腿笛卡尔空间期望位置
+    leg->setLegExpVel(Vector3D(0.0,0.0,0.0));
     // TODO:设置期望速度/加速度，力矩等
     bool arrivable;
     auto leg_joint_target_rad = leg->calculateExpJointRad(&arrivable); // 计算狗腿关节空间位置
@@ -92,20 +92,23 @@ void LegControl::Run_Cb() {
     {
         RCLCPP_WARN(this->get_logger(), "足端期望位置不可达");
     }
-    RCLCPP_INFO(this->get_logger(),"足端位置:(%f,%f,%f)",std::get<0>(leg_cart_target)[0],std::get<0>(leg_cart_target)[1],std::get<0>(leg_cart_target)[2]);
+    //RCLCPP_INFO(this->get_logger(),"足端位置:(%f,%f,%f)",std::get<0>(leg_cart_target)[0],std::get<0>(leg_cart_target)[1],std::get<0>(leg_cart_target)[2]);
+    RCLCPP_INFO(get_logger(),"足端实际位置:(%f,%f,%f)",leg->calculateCurFootPosition()[0],leg->calculateCurFootPosition()[1],leg->calculateCurFootPosition()[2]);
     
     // 发布标记表示期望的足端位置
+    auto cur_foot_pos=leg->calculateCurFootPosition();
+
     visualization_msgs::msg::Marker dot_marker;
-    dot_marker.header.frame_id = "link0"; // 设置坐标系
+    dot_marker.header.frame_id = "world"; // 设置坐标系
     dot_marker.header.stamp    = this->get_clock()->now();
     dot_marker.ns              = "points";
     dot_marker.id              = 0;
     dot_marker.type            = visualization_msgs::msg::Marker::SPHERE;
     dot_marker.action          = visualization_msgs::msg::Marker::ADD;
     
-    dot_marker.pose.position.x = leg->cur_cart_pos[0];
-    dot_marker.pose.position.y = leg->cur_cart_pos[1];
-    dot_marker.pose.position.z = leg->cur_cart_pos[2];
+    dot_marker.pose.position.x = cur_foot_pos[0];
+    dot_marker.pose.position.y = cur_foot_pos[1];
+    dot_marker.pose.position.z = cur_foot_pos[2];
     // 设置球体的尺寸
     dot_marker.scale.x = 0.1;
     dot_marker.scale.y = 0.1;
@@ -151,21 +154,22 @@ void LegControl::Run_Cb() {
 
     arraw_marker.lifetime = rclcpp::Duration(0, 0);
 
-    marker_publisher->publish(arraw_marker);    //发布箭头标记（狗腿足端期望速度）
+    marker_publisher->publish(arraw_marker);    //发布箭头标记（狗腿足端期望速度）*/
 
-    auto cur_foot_pos=leg->calculateCurFootPosition();
-    auto cur_foot_vel=leg->calculateCurFootVelocity();
+    auto cur_foot_force=leg->calculateCurFootForce();
     arraw_marker.id = 1;    //复用临时对象，填写当前狗腿的状态
     p_start.x = cur_foot_pos[0];
     p_start.y = cur_foot_pos[1];
     p_start.z = cur_foot_pos[2];
 
-    p_end.x = p_start.x+cur_foot_vel[0]*1.5f;
-    p_end.y = p_start.y+cur_foot_vel[1]*1.5f;
-    p_end.z = p_start.z+cur_foot_vel[2]*1.5f;
+    p_end.x = p_start.x+cur_foot_force[0]*0.05f;
+    p_end.y = p_start.y+cur_foot_force[1]*0.05f;
+    p_end.z = p_start.z+cur_foot_force[2]*0.05f;
 
     arraw_marker.points[0]=p_start;
     arraw_marker.points[1]=p_end;
+
+    arraw_marker.color.r = 0.0;
 
     marker_publisher->publish(arraw_marker);    //发布箭头标记（狗腿足端实际速度）
 
@@ -182,9 +186,9 @@ void LegControl::Run_Cb() {
     joint_msg_driver.legs[2].joints[0].rad = (float)leg_joint_target_rad[0];
     joint_msg_driver.legs[2].joints[1].rad = (float)leg_joint_target_rad[1];
     joint_msg_driver.legs[2].joints[2].rad = (float)leg_joint_target_rad[2];
-    joint_msg_driver.legs[2].joints[0].omega = 0.0f;//(float)leg_joint_target_omega[0];
-    joint_msg_driver.legs[2].joints[1].omega = 0.0f;//(float)leg_joint_target_omega[1];
-    joint_msg_driver.legs[2].joints[2].omega = 0.0f;//(float)leg_joint_target_omega[2];
+    joint_msg_driver.legs[2].joints[0].omega = (float)leg_joint_target_omega[0];
+    joint_msg_driver.legs[2].joints[1].omega = (float)leg_joint_target_omega[1];
+    joint_msg_driver.legs[2].joints[2].omega = (float)leg_joint_target_omega[2];
     joint_msg_driver.legs[2].joints[0].torque = 0.0f;
     joint_msg_driver.legs[2].joints[1].torque = 0.0f;
     joint_msg_driver.legs[2].joints[2].torque = 0.0f;
@@ -197,5 +201,5 @@ void LegControl::Run_Cb() {
     legs_target_pub->publish(joint_msg_driver);
 
     leg->MathReset(); // 本次控制周期已经结束，清除数学运算缓存信息
-    cur_time = cur_time > leg_run_time ? 0.0 : (cur_time + 0.01);
+    cur_time = cur_time > leg_run_time ? 0.0 : (cur_time + 0.1);
 }
