@@ -1,6 +1,7 @@
 #include "step.h"
 #include <rclcpp/logger.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <tuple>
 
 static inline void set_quintic(
     CubicLineParam_t& seg, double p0, double v0, double a0, double pT, double vT, double aT,
@@ -144,15 +145,15 @@ bool UpdateAirStepLine(
     return true;
 }
 
-bool UpdateCycloidStep(
-    const Vector2D& exp_vel, CycloidStep_t* line, float time, float step_height) {
-    line->Lx = exp_vel[0] * time * 0.5f; // 步长应该是期望速度乘以半个步态周期
-    line->Ly = exp_vel[1] * time * 0.5f;
+bool UpdateCycloidStep(const Vector2D& exp_vel, CycloidStep_t* line, float time, float step_height) {
+    line->Lx = exp_vel[0] * time; // 步长应该是期望速度乘以半个步态周期，但是转换到机器人坐标系后需要乘以整个步态周期因为机器人在向前移动
+    line->Ly = exp_vel[1] * time;
     line->H  = step_height;
     line->T  = time * 0.5f;              // 实际上，摆动相只占整个步态的一半时间
 
-    line->cur_vx = exp_vel[0]; // 当前速度估计（认为机器人足端位置的速度就是期望速度）
-    line->cur_vy = exp_vel[1];
+    line->exp_vx = exp_vel[0]; // 当前速度估计（认为机器人足端位置的速度就是期望速度）
+    line->exp_vy = exp_vel[1];
+    return true;
 }
 
 std::tuple<Vector3D, Vector3D, Vector3D> GetCycloidStep(float time, CycloidStep_t& line) {
@@ -164,13 +165,13 @@ std::tuple<Vector3D, Vector3D, Vector3D> GetCycloidStep(float time, CycloidStep_
 
     if (s <= 1.0f) {    //摆动相
         // 位置
-        pos[0] = line.Lx * (2 * pi * s - std::sin(2 * pi * s)) / (2 * pi) - line.cur_vx * time;
-        pos[1] = line.Ly * (2 * pi * s - std::sin(2 * pi * s)) / (2 * pi) - line.cur_vy * time;
+        pos[0] = line.Lx * (2 * pi * s - std::sin(2 * pi * s)) / (2 * pi) - line.exp_vx * time;
+        pos[1] = line.Ly * (2 * pi * s - std::sin(2 * pi * s)) / (2 * pi) - line.exp_vy * time;
         pos[2] = line.H * (1 - std::cos(2 * pi * s)) / 2.0;
 
         // 速度
-        vel[0] = line.Lx * (1 - std::cos(2 * pi * s)) / line.T - line.cur_vx;
-        vel[1] = line.Ly * (1 - std::cos(2 * pi * s)) / line.T - line.cur_vy;
+        vel[0] = line.Lx * (1 - std::cos(2 * pi * s)) / line.T - line.exp_vx;
+        vel[1] = line.Ly * (1 - std::cos(2 * pi * s)) / line.T - line.exp_vy;
         vel[2] = line.H * pi * std::sin(2 * pi * s) / line.T;
 
         // 加速度
@@ -178,13 +179,13 @@ std::tuple<Vector3D, Vector3D, Vector3D> GetCycloidStep(float time, CycloidStep_
         acc[1] = line.Ly * (2 * pi * std::sin(2 * pi * s)) / (line.T * line.T);
         acc[2] = line.H * 2 * pi * pi * std::cos(2 * pi * s) / (line.T * line.T);
     }
-    else {      //支撑相
-        pos[0] = line.Lx-line.cur_vx * (time-line.T);
-        pos[1] = line.Ly-line.cur_vy * (time-line.T);
+    else {      //1<s<2,支撑相
+        pos[0] = line.Lx*0.5-line.exp_vx * (time-line.T);
+        pos[1] = line.Ly*0.5-line.exp_vy * (time-line.T);
         pos[2] = 0.0;
 
-        vel[0] = -line.cur_vx;
-        vel[1] = -line.cur_vy;
+        vel[0] = -line.exp_vx;
+        vel[1] = -line.exp_vy;
         vel[2] = 0.0;
 
         acc[0] = 0.0;

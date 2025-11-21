@@ -35,19 +35,19 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
 
     cur_time     = 0;
     state_flag   = 0;
-    leg_run_time = 6.0;
+    leg_run_time = 2.0;
     step_update_flag=true;
 
     leg = new Leg(leg_param); // 创建数学解算对象
 
-    update_timer = create_wall_timer(100ms, [this]() { Run_Cb(); });
+    update_timer = create_wall_timer(50ms, [this]() { Run_Cb(); });
 }
 
 LegControl::~LegControl() { delete leg; }
 
 void LegControl::Run_Cb() {
     //计算当前时间下足端期望位置和速度
-    if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
+    /*if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
     {
         step_update_flag=true;
         UpdateGndStepLine(leg->calculateCurFootPosition(), Vector2D(0.02, 0.0), &trajectory,leg_run_time);
@@ -59,6 +59,22 @@ void LegControl::Run_Cb() {
     }
 
     auto leg_cart_target = GetLegTarget(cur_time, trajectory);
+
+    leg->setLegExptPos(std::get<0>(leg_cart_target)); // 设置狗腿笛卡尔空间期望位置
+    leg->setLegExpVel(std::get<1>(leg_cart_target));
+    // TODO:设置期望速度/加速度，力矩等
+    bool arrivable;
+    auto leg_joint_target_rad = leg->calculateExpJointRad(&arrivable); // 计算狗腿关节空间位置
+    auto leg_joint_target_omega=leg->calculateExpJointOmega(); //计算狗腿关节空间速度*/
+
+    //计算当前时间下足端期望位置和速度
+    if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
+    {
+        step_update_flag=true;
+        UpdateCycloidStep(Vector2D(0.2,0.0), &cycloid_step,leg_run_time,0.1f);;
+    }
+    
+    auto leg_cart_target  = GetCycloidStep(cur_time, cycloid_step);
 
     leg->setLegExptPos(std::get<0>(leg_cart_target)); // 设置狗腿笛卡尔空间期望位置
     leg->setLegExpVel(std::get<1>(leg_cart_target));
@@ -166,9 +182,9 @@ void LegControl::Run_Cb() {
     joint_msg_driver.legs[2].joints[0].rad = (float)leg_joint_target_rad[0];
     joint_msg_driver.legs[2].joints[1].rad = (float)leg_joint_target_rad[1];
     joint_msg_driver.legs[2].joints[2].rad = (float)leg_joint_target_rad[2];
-    joint_msg_driver.legs[2].joints[0].omega = (float)leg_joint_target_omega[0];
-    joint_msg_driver.legs[2].joints[1].omega = (float)leg_joint_target_omega[1];
-    joint_msg_driver.legs[2].joints[2].omega = (float)leg_joint_target_omega[2];
+    joint_msg_driver.legs[2].joints[0].omega = 0.0f;//(float)leg_joint_target_omega[0];
+    joint_msg_driver.legs[2].joints[1].omega = 0.0f;//(float)leg_joint_target_omega[1];
+    joint_msg_driver.legs[2].joints[2].omega = 0.0f;//(float)leg_joint_target_omega[2];
     joint_msg_driver.legs[2].joints[0].torque = 0.0f;
     joint_msg_driver.legs[2].joints[1].torque = 0.0f;
     joint_msg_driver.legs[2].joints[2].torque = 0.0f;
@@ -181,5 +197,5 @@ void LegControl::Run_Cb() {
     legs_target_pub->publish(joint_msg_driver);
 
     leg->MathReset(); // 本次控制周期已经结束，清除数学运算缓存信息
-    cur_time = cur_time > leg_run_time ? 0.0 : (cur_time + 0.1);
+    cur_time = cur_time > leg_run_time ? 0.0 : (cur_time + 0.01);
 }

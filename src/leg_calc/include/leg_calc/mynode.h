@@ -24,6 +24,8 @@ private:
     std::tuple<Vector3D,Vector3D,Vector3D> leg_state;
     std::tuple<Vector3D,Vector3D,Vector3D> leg_target;
     Trajectory_t trajectory;
+    CycloidStep_t cycloid_step;
+
     Leg *leg;
 
     double cur_time;            //当前运行时间

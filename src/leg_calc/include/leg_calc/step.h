@@ -36,8 +36,8 @@ typedef struct
 
 typedef struct
 {
-    double cur_vx;
-    double cur_vy;
+    double exp_vx;
+    double exp_vy;
     double H;    //摆动轨迹半径
     double Lx;    //x方向步长
     double Ly;    //x方向步长
