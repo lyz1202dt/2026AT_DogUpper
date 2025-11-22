@@ -5,6 +5,14 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -27,5 +35,36 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+add_executable(leg_measure
+src/main.cpp
+src/measure_node.cpp
+)
+
+
+target_include_directories(leg_measure
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/leg_measure>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(${PROJECT_NAME} ${leg_driver_LIBRARIES})
+
+ament_target_dependencies(
+  leg_measure
+  rclcpp
+  geometry_msgs
+  sensor_msgs
+  visualization_msgs
+  tf2
+  tf2_ros
+  robot_interfaces
+  leg_driver
+)
+
+install(TARGETS
+leg_measure
+DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()
