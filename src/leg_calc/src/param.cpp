@@ -28,15 +28,6 @@ void LeftBackLegParamInit(LegParam_t *leg_param)
 	leg_param->r1<<0.0f,-0.15f,0.0f;            //质心坐标
 	leg_param->r2<<0.0f,0.0f,0.25f;
 	leg_param->r3<<0.0f,0.0f,0.25f;
-	// leg_param->T_GndToBase<<                    //支撑相中性点到基坐标系的齐次变换矩阵
-	// 	0.0     ,0.0    ,-1.0   ,0.115,
-	// 	0.0     ,-1.0   ,0.0    ,-0.108,
-	// 	-1.0    ,0.0    ,0.0    ,0.32,
-	// 	0.0     ,0.0    ,0.0    ,1.0;
-	// leg_param->R_GndToBase<<
-	// 	0.0     ,0.0    ,-1.0,
-	// 	0.0     ,-1.0   ,0.0,
-	// 	-1.0    ,0.0    ,0.0;
 
 	leg_param->T_GndToBase<<                    //支撑相中性点到基坐标系的齐次变换矩阵
 		0.0     ,0.0    ,-1.0   ,0.115,
@@ -47,4 +38,12 @@ void LeftBackLegParamInit(LegParam_t *leg_param)
 		0.0     ,0.0    ,-1.0,
 		0.0     ,-1.0   ,0.0,
 		-1.0    ,0.0    ,0.0;
+
+	leg_param->grivate_param<<		//使用Matlab进行系统参数辨识得到的参数
+		0.3323,
+    	-1.5674,
+    	0.5293,
+    	-0.1034,
+    	0.5631,
+    	-0.0151;
 }

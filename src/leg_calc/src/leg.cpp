@@ -1,4 +1,5 @@
 #include "leg.h"
+#include <Eigen/src/Core/Matrix.h>
 
 void Leg::setJointCurrentRad(const Vector3D &rad)
 {
@@ -261,10 +262,27 @@ Vector3D Leg::calculateCurFootVelocity()
     return param.R_GndToBase*(jocabain_cur_pos*cur_joint_vel);  //将坐标系转为支撑相中性点坐标系
 }
 
-Vector3D Leg::calculateCurFootForce()
+Vector3D Leg::calculateCurFootForce(const Vector3D &feedforward)
 {
-    /*if(exp_torque_is_update)     //如果之前没计算过足端期望力矩，那么计算一次足端力矩，用于传感足端真实受力
-        calculateExpJointTorque();*/
-    cur_cart_for=jocabain_cur_pos.transpose().inverse()*(cur_joint_tor/* - exp_joint_tor*/);
+    cur_cart_for=jocabain_cur_pos.transpose().inverse()*(cur_joint_tor-feedforward);
     return param.R_GndToBase*cur_cart_for;  //将坐标系转为支撑相中性点坐标系
+}
+
+Vector3D Leg::calculateMassComponentsTorque()
+{
+    Eigen::Matrix<double,3,6> Y;
+
+    double s1 = std::sin(cur_joint_pos[0]);
+    double c1 = std::cos(cur_joint_pos[0]);
+    double s2 = std::sin(cur_joint_pos[1]);
+    double c2 = std::cos(cur_joint_pos[1]);
+    double s3 = std::sin(cur_joint_pos[2]);
+    double c3 = std::cos(cur_joint_pos[2]);
+
+    //TODO:填写Y矩阵
+    Y<< s1      ,   c1      , -2*s1*s2  , -c2*s1    , - c2*s1*s3 - c3*s1*s2 ,   s1*s2*s3 - c2*c3*s1,
+        0.0     ,   0.0     ,  2*c1*c2  , -c1*s2    ,  c1*c2*c3 - c1*s2*s3  , - c1*c2*s3 - c1*c3*s2,
+        0.0     ,   0.0     ,   0.0     ,   0.0     ,  c1*c2*c3 - c1*s2*s3  , - c1*c2*s3 - c1*c3*s2;
+
+    return (Y*param.grivate_param);
 }

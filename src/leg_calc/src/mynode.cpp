@@ -17,7 +17,7 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
     legs_state_sub = this->create_subscription<robot_interfaces::msg::Robot>(
         "legs_status", 10, [this](const robot_interfaces::msg::Robot& msg) {
             //RCLCPP_INFO(this->get_logger(), "订阅到最新的电机状态");
-            /*sensor_msgs::msg::JointState joint_msg;
+            sensor_msgs::msg::JointState joint_msg;
     joint_msg.header.stamp = this->get_clock()->now();
     joint_msg.name     = {"joint1", "joint2", "joint3"};
             joint_msg.position={msg.legs[2].joints[0].rad,msg.legs[2].joints[1].rad,msg.legs[2].joints[2].rad};
@@ -71,13 +71,13 @@ void LegControl::Run_Cb() {
     if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
     {
         step_update_flag=true;
-        UpdateCycloidStep(Vector2D(0.2,0.0), &cycloid_step,leg_run_time,0.1f);;
+        UpdateCycloidStep(Vector2D(0.2,0.05), &cycloid_step,leg_run_time,0.1f);;
     }
     
     auto leg_cart_target  = GetCycloidStep(cur_time, cycloid_step);
 
-    leg->setLegExptPos(Vector3D(0.0,0.0,0.0)); // 设置狗腿笛卡尔空间期望位置
-    leg->setLegExpVel(Vector3D(0.0,0.0,0.0));
+    leg->setLegExptPos(std::get<0>(leg_cart_target)); // 设置狗腿笛卡尔空间期望位置
+    leg->setLegExpVel(std::get<1>(leg_cart_target));
     // TODO:设置期望速度/加速度，力矩等
     bool arrivable;
     auto leg_joint_target_rad = leg->calculateExpJointRad(&arrivable); // 计算狗腿关节空间位置
@@ -155,8 +155,8 @@ void LegControl::Run_Cb() {
     arraw_marker.lifetime = rclcpp::Duration(0, 0);
 
     marker_publisher->publish(arraw_marker);    //发布箭头标记（狗腿足端期望速度）*/
-
-    auto cur_foot_force=leg->calculateCurFootForce();
+    auto exp_joint_torque=leg->calculateMassComponentsTorque();
+    auto cur_foot_force=leg->calculateCurFootForce(exp_joint_torque);
     arraw_marker.id = 1;    //复用临时对象，填写当前狗腿的状态
     p_start.x = cur_foot_pos[0];
     p_start.y = cur_foot_pos[1];
@@ -175,11 +175,11 @@ void LegControl::Run_Cb() {
 
 
     // 发布rviz2,狗腿关节角度消息
-    sensor_msgs::msg::JointState joint_msg_rviz2;
+    /*sensor_msgs::msg::JointState joint_msg_rviz2;
     joint_msg_rviz2.header.stamp = this->get_clock()->now();
     joint_msg_rviz2.name         = {"joint1", "joint2", "joint3"};
     joint_msg_rviz2.position     = {leg->exp_joint_pos[0], leg->exp_joint_pos[1], leg->exp_joint_pos[2]};
-    rviz_joint_publisher->publish(joint_msg_rviz2);
+    rviz_joint_publisher->publish(joint_msg_rviz2);*/
 
     // 发布电机目标值
     robot_interfaces::msg::Robot joint_msg_driver;
@@ -189,9 +189,9 @@ void LegControl::Run_Cb() {
     joint_msg_driver.legs[2].joints[0].omega = (float)leg_joint_target_omega[0];
     joint_msg_driver.legs[2].joints[1].omega = (float)leg_joint_target_omega[1];
     joint_msg_driver.legs[2].joints[2].omega = (float)leg_joint_target_omega[2];
-    joint_msg_driver.legs[2].joints[0].torque = 0.0f;
-    joint_msg_driver.legs[2].joints[1].torque = 0.0f;
-    joint_msg_driver.legs[2].joints[2].torque = 0.0f;
+    joint_msg_driver.legs[2].joints[0].torque = (float)exp_joint_torque[0];
+    joint_msg_driver.legs[2].joints[1].torque = (float)exp_joint_torque[1];
+    joint_msg_driver.legs[2].joints[2].torque = (float)exp_joint_torque[2];
     joint_msg_driver.legs[2].joints[0].kp = 1.5f;
     joint_msg_driver.legs[2].joints[1].kp = 0.19f;
     joint_msg_driver.legs[2].joints[2].kp = 0.2f;

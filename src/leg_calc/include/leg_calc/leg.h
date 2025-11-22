@@ -28,6 +28,8 @@ typedef struct{
     Eigen::Matrix4d T_GndToBase;    //狗腿零相位到机械臂基坐标的齐次变换矩阵
     Eigen::Matrix3d R_GndToBase;    //狗腿零相位到机械臂基坐标的齐次变换矩阵
     Eigen::Matrix3d R_1to0, R_2to1, R_3to2;  //各关节坐标系之间的旋转矩阵
+
+    Eigen::Matrix<double, 6, 1> grivate_param;
 }LegParam_t;
 
 
@@ -59,7 +61,8 @@ class Leg{
     
     Vector3D calculateCurFootPosition();
     Vector3D calculateCurFootVelocity();
-    Vector3D calculateCurFootForce();
+    Vector3D calculateCurFootForce(const Vector3D &feedforward);
+    Vector3D calculateMassComponentsTorque();
 
     void MathReset();
 
