@@ -35,74 +35,38 @@ typedef struct{
 
 class Leg{
     public:
-
-    static constexpr char FINISH_EXP_POS_CALC=0x01;
-    static constexpr char FINISH_EXP_VEL_CALC=0x02;
-    static constexpr char FINISH_EXP_TOR_CALC=0x04;
-
-    static constexpr char FINISH_CUR_POS_CALC=0x10;
-    static constexpr char FINISH_CUR_VEL_CALC=0x20;
-    static constexpr char FINISH_CUR_TOR_CALC=0x40;
     
     Leg(LegParam_t &arg):param(arg) {}
 
-    void setJointCurrentRad(const Vector3D &rad);           //设置关节当前的位置/角速度/力矩
-    void setJointCurrentOmega(const Vector3D &omega);
-    void setJointCurrentTorque(const Vector3D &torque);
-
-    void setLegExptPos(const Vector3D&pos);                 //设置狗腿当前的位置/速度/力
-    void setLegExpVel(const Vector3D &vel);
-    void setLegExpAcc(const Vector3D &acc);
-    void setLegExpForce(const Vector3D &force);
+    void setJointCurrentState(const Vector3D &rad,const Vector3D &omega,const Vector3D &torque);           //设置关节当前的位置/角速度/力矩
     
-    Vector3D calculateExpJointRad(bool *arrivable);     //根据期望位置计算期望关节角度
-    Vector3D calculateExpJointOmega();                  //根据期望角速度计算期望关节角速度
-    Vector3D calculateExpJointTorque();                 //根据期望足端力矩计算关节期望力矩
+    Vector3D calculateExpJointRad(const Vector3D &cart_exp_pos,bool *arrivable);     //计算期望位置
+    Vector3D calculateExpJointOmega(const Vector3D &cart_exp_pos, const Vector3D &cart_exp_vel);       //计算期望角速度
+    Vector3D calculateAccelerationTorque(const Vector3D &cart_exp_pos, const Vector3D &vel, const Vector3D &acc);     //根据加速度计算力矩
+    Vector3D calculateFootForceTorque(const Vector3D &cart_exp_pos,const Vector3D &cart_force);  //根据足端期望力计算关节力矩
+    Vector3D calculateMassComponentsTorque();                        //计算狗腿重力补偿力矩
     
-    Vector3D calculateCurFootPosition();
-    Vector3D calculateCurFootVelocity();
-    Vector3D calculateCurFootForce(const Vector3D &feedforward);
-    Vector3D calculateMassComponentsTorque();
+    Vector3D calculateCurFootPosition();                                   //计算足端的实际位置
+    Vector3D calculateCurFootVelocity();   //计算足端的速度
+    Vector3D calculateCurFootForce(const Vector3D &feedforward);          //除去feedforward前馈力矩后，计算实际足端受力
 
     void MathReset();
 
 
     LegParam_t param;               //狗腿机械结构参数
 
-    Vector3D cur_joint_pos;         //关节空间实际
-    Vector3D cur_joint_vel;
-    Vector3D cur_joint_tor;
-
-    Vector3D cur_cart_pos;      //笛卡尔坐标系下的位置，速度和受力
-    Vector3D cur_cart_vel;
-    Vector3D cur_cart_for;
-
-    Vector3D exp_joint_pos;         //关节空间期望
-    Vector3D exp_joint_vel;
-    Vector3D exp_joint_tor;
-
-    Vector3D exp_cart_pos;
-    Vector3D exp_cart_vel;
-    Vector3D exp_cart_acc;
-    Vector3D exp_cart_for;
-
+    Vector3D exp_joint_rad;         //关节空间期望位置
+    Vector3D exp_joint_omega;       //关节空间期望速度
+    Vector3D cur_joint_rad;         //狗腿当前的状态
+    Vector3D cur_joint_omega;
+    Vector3D cur_joint_torque;
+    Vector3D cur_cart_pos;          //笛卡尔空间下足端位置
     Eigen::Matrix3d jocabain_exp_pos;   //期望位置映射的雅可比矩阵
     Eigen::Matrix3d jocabain_cur_pos;   //实际位置映射的雅可比矩阵
-
-    
 private:
-    bool exp_pos_is_update;
-    bool exp_vel_is_update;
-    bool exp_force_is_update;
-    bool exp_acc_is_update;
-
-    bool exp_rad_is_update;
+    bool exp_jacobian_is_update;
+    bool cur_jacobian_is_update;
     bool exp_omega_is_update;
-    bool exp_torque_is_update;
-
-    bool cur_rad_is_update;
-    bool cur_omega_is_update;
-    bool cur_torque_is_update;
 };
 
 
