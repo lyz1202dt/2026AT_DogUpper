@@ -64,9 +64,9 @@ class Leg{
     Eigen::Matrix3d jocabain_exp_pos;   //期望位置映射的雅可比矩阵
     Eigen::Matrix3d jocabain_cur_pos;   //实际位置映射的雅可比矩阵
 private:
-    bool exp_jacobian_is_update;
-    bool cur_jacobian_is_update;
-    bool exp_omega_is_update;
+    bool exp_jacobian_is_update{false};
+    bool cur_jacobian_is_update{false};
+    bool exp_omega_is_update{false};
 };
 
 

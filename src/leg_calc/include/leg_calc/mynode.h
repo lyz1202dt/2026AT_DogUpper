@@ -16,6 +16,7 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
 #include <chrono>
+#include <rclcpp/parameter.hpp>
 
 class LegControl :public rclcpp::Node{
 public:
@@ -40,6 +41,13 @@ private:
     rclcpp::Publisher<robot_interfaces::msg::Robot>::SharedPtr legs_target_pub;
     rclcpp::Subscription<robot_interfaces::msg::Robot>::SharedPtr legs_state_sub;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr rviz_joint_publisher;
+
+    //狗腿
+    Vector3D f_force;
+
+
+    //参数服务
+    OnSetParametersCallbackHandle::SharedPtr param_server_handle;
 };
 
 #endif

@@ -1,4 +1,3 @@
-#include <chrono>
 #include <mynode.h>
 
 using namespace std::chrono_literals;
@@ -6,6 +5,24 @@ using namespace std::chrono_literals;
 // 初始化狗腿参数，创建发布者
 LegControl::LegControl(LegParam_t& leg_param, std::string name)
     : Node(name) {
+
+    f_force=Vector3D(0.0,0.0,0.0);
+
+    this->declare_parameter("joint1_kp",2.5);
+    this->declare_parameter("joint2_kp",3.4);
+    this->declare_parameter("joint3_kp",1.5);
+    this->declare_parameter("joint1_kd",0.15);
+    this->declare_parameter("joint2_kd",0.16);
+    this->declare_parameter("joint3_kd",0.18);
+    this->declare_parameter("force_filter_gate",0.9);
+
+    param_server_handle=this->add_on_set_parameters_callback([this](const std::vector<rclcpp::Parameter> &params){
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        RCLCPP_INFO(this->get_logger(),"更新参数%d个",(int)params.size());
+        return result;
+    });
+
 
     leg = new Leg(leg_param); // 创建数学解算对象
 
@@ -37,7 +54,6 @@ LegControl::~LegControl() { delete leg; }
 void LegControl::Show_Cb(){
 
     auto cur_foot_pos=leg->calculateCurFootPosition();
-    auto cur_foot_force=leg->calculateCurFootForce(leg->calculateMassComponentsTorque());
 
     sensor_msgs::msg::JointState joint_msg;
     joint_msg.header.stamp = this->get_clock()->now();
@@ -83,9 +99,9 @@ void LegControl::Show_Cb(){
     p_start.z = cur_foot_pos[2];
 
     geometry_msgs::msg::Point p_end;
-    p_end.x = p_start.x+cur_foot_force[0]*0.05f;
-    p_end.y = p_start.y+cur_foot_force[1]*0.05f;
-    p_end.z = p_start.z+cur_foot_force[2]*0.05f;
+    p_end.x = p_start.x+f_force[0]*0.05f;
+    p_end.y = p_start.y+f_force[1]*0.05f;
+    p_end.z = p_start.z+f_force[2]*0.05f;
 
     arraw_marker.points.push_back(p_start);
     arraw_marker.points.push_back(p_end);
@@ -105,26 +121,6 @@ void LegControl::Show_Cb(){
 }
 
 void LegControl::Run_Cb() {
-    //计算当前时间下足端期望位置和速度
-    /*if (cur_time == 0.0)      // 如果当前时间等于0,那么规划一次步态
-    {
-        step_update_flag=true;
-        UpdateGndStepLine(leg->calculateCurFootPosition(), Vector2D(0.02, 0.0), &trajectory,leg_run_time);
-    }
-    else if(step_update_flag&&cur_time>=leg_run_time*0.5)   //如果支撑相走完，在摆动相开始时时再根据当前状态规划一次步态
-    {
-        step_update_flag=false;
-        UpdateAirStepLine(leg->calculateCurFootPosition(), Vector3D(-0.02,0.0,0.0), Vector2D(0.02, 0.00), &trajectory,leg_run_time,0.1f);
-    }
-
-    auto leg_cart_target = GetLegTarget(cur_time, trajectory);
-
-    leg->setLegExptPos(std::get<0>(leg_cart_target)); // 设置狗腿笛卡尔空间期望位置
-    leg->setLegExpVel(std::get<1>(leg_cart_target));
-    // TODO:设置期望速度/加速度，力矩等
-    bool arrivable;
-    auto leg_joint_target_rad = leg->calculateExpJointRad(&arrivable); // 计算狗腿关节空间位置
-    auto leg_joint_target_omega=leg->calculateExpJointOmega(); //计算狗腿关节空间速度*/
 
     //计算当前时间下足端期望位置和速度
     auto now_time = std::chrono::high_resolution_clock::now();
@@ -138,16 +134,20 @@ void LegControl::Run_Cb() {
         UpdateCycloidStep(Vector2D(0.2,0.07), &cycloid_step,leg_run_time,0.1f);
     }
     auto leg_cart_target  = GetCycloidStep(cur_time, cycloid_step); //笛卡尔系下的狗腿期望
+    
 
     //RCLCPP_INFO(this->get_logger(),"足端实际位置:(%f,%f,%f)",leg->calculateCurFootPosition()[0],leg->calculateCurFootPosition()[1],leg->calculateCurFootPosition()[2]);
 
     bool arrivable;
-    auto leg_joint_target_rad = leg->calculateExpJointRad(std::get<0>(leg_cart_target),&arrivable); // 计算狗腿关节空间位置
-    auto leg_joint_target_omega=leg->calculateExpJointOmega(std::get<0>(leg_cart_target),std::get<1>(leg_cart_target)); //计算狗腿关节空间速度
-    auto exp_joint_torque=leg->calculateMassComponentsTorque();
+    auto leg_joint_target_rad = leg->calculateExpJointRad(Vector3D(0.0,0.0,0.0),&arrivable); // 计算狗腿关节空间位置
+    auto leg_joint_target_omega=leg->calculateExpJointOmega(Vector3D(0.0,0.0,0.0),Vector3D(0.0,0.0,0.0)); //计算狗腿关节空间速度
+    auto grivate_compen_torque=leg->calculateMassComponentsTorque();
 
     //TODO:单腿VMC
-    leg->calculateCurFootForce(exp_joint_torque);
+    auto foot_force=leg->calculateCurFootForce(grivate_compen_torque);
+    double filter_gate=this->get_parameter("force_filter_gate").as_double();
+    f_force=filter_gate*f_force+(1.0f-filter_gate)*foot_force;
+    RCLCPP_INFO(this->get_logger(),"f_force=(%lf,%lf,%lf)",f_force[0],f_force[1],f_force[2]);
 
 
     if (!arrivable) // 如果规划出来的轨迹是可到达的目标
@@ -162,15 +162,15 @@ void LegControl::Run_Cb() {
     joint_msg_driver.legs[2].joints[0].omega = (float)leg_joint_target_omega[0];
     joint_msg_driver.legs[2].joints[1].omega = (float)leg_joint_target_omega[1];
     joint_msg_driver.legs[2].joints[2].omega = (float)leg_joint_target_omega[2];
-    joint_msg_driver.legs[2].joints[0].torque = (float)exp_joint_torque[0];
-    joint_msg_driver.legs[2].joints[1].torque = (float)exp_joint_torque[1];
-    joint_msg_driver.legs[2].joints[2].torque = (float)exp_joint_torque[2];
-    joint_msg_driver.legs[2].joints[0].kp = 1.5f;
-    joint_msg_driver.legs[2].joints[1].kp = 0.19f;
-    joint_msg_driver.legs[2].joints[2].kp = 0.2f;
-    joint_msg_driver.legs[2].joints[0].kd = 0.1f;
-    joint_msg_driver.legs[2].joints[1].kd = 0.05f;
-    joint_msg_driver.legs[2].joints[2].kd = 0.05f;
+    joint_msg_driver.legs[2].joints[0].torque = (float)grivate_compen_torque[0];
+    joint_msg_driver.legs[2].joints[1].torque = (float)grivate_compen_torque[1];
+    joint_msg_driver.legs[2].joints[2].torque = (float)grivate_compen_torque[2];
+    joint_msg_driver.legs[2].joints[0].kp = (float)this->get_parameter("joint1_kp").as_double();
+    joint_msg_driver.legs[2].joints[1].kp = (float)this->get_parameter("joint2_kp").as_double();
+    joint_msg_driver.legs[2].joints[2].kp = (float)this->get_parameter("joint3_kp").as_double();
+    joint_msg_driver.legs[2].joints[0].kd = (float)this->get_parameter("joint1_kd").as_double();
+    joint_msg_driver.legs[2].joints[1].kd = (float)this->get_parameter("joint2_kd").as_double();
+    joint_msg_driver.legs[2].joints[2].kd = (float)this->get_parameter("joint3_kd").as_double();
     legs_target_pub->publish(joint_msg_driver);
 
     leg->MathReset(); // 本次控制周期已经结束，清除数学运算缓存信息
