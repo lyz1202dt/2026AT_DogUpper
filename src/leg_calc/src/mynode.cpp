@@ -149,7 +149,7 @@ void LegControl::Run_Cb() {
     std::tuple<double,double,double> vmc_target=std::make_tuple(0.0,0.0,0.0);
     if(this->get_parameter("enable_vmc").as_bool())     //使用VMC
     {
-        vmc_target=vmc->VMC_handle(foot_pos[2], foot_vel[2], -foot_force[2]);
+        vmc_target=vmc->VMC_handle(0.0,foot_pos[2], 0.0,foot_vel[2], -foot_force[2]);
         RCLCPP_INFO(this->get_logger(),"vmc(%lf,%lf,%lf)",std::get<0>(vmc_target),std::get<1>(vmc_target),std::get<2>(vmc_target));
     }
 
