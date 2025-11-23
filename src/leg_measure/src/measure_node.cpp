@@ -18,6 +18,13 @@ LegMeasureNode::LegMeasureNode()
     this->declare_parameter("csv_file_path","/home/lyz/Project/26_AT_dog/src/launch_pack/src/CSV.csv");
     this->declare_parameter("enable_measure",false);
 
+    param_srver_handle=this->add_on_set_parameters_callback([this](const std::vector<rclcpp::Parameter> &params){
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        RCLCPP_INFO(this->get_logger(),"更新参数%d个",(int)params.size());
+        return result;
+    });
+
     //订阅节点的位置信息
     legs_state_sub = this->create_subscription<robot_interfaces::msg::Robot>(
         "legs_status", 10, std::bind(&LegMeasureNode::measureCallback, this, std::placeholders::_1));

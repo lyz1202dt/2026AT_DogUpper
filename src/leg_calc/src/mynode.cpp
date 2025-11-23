@@ -1,3 +1,4 @@
+#include <chrono>
 #include <mynode.h>
 
 using namespace std::chrono_literals;
@@ -6,16 +7,15 @@ using namespace std::chrono_literals;
 LegControl::LegControl(LegParam_t& leg_param, std::string name)
     : Node(name) {
 
-    f_force=Vector3D(0.0,0.0,0.0);
-
-    this->declare_parameter("joint1_kp",2.5);
-    this->declare_parameter("joint2_kp",3.4);
+    this->declare_parameter("joint1_kp",2.4);
+    this->declare_parameter("joint2_kp",3.2);
     this->declare_parameter("joint3_kp",1.5);
     this->declare_parameter("joint1_kd",0.15);
     this->declare_parameter("joint2_kd",0.16);
     this->declare_parameter("joint3_kd",0.18);
-    this->declare_parameter("force_filter_gate",0.9);
-
+    this->declare_parameter("force_filter_gate",0.8);
+    this->declare_parameter("enable_vmc",false);
+    
     param_server_handle=this->add_on_set_parameters_callback([this](const std::vector<rclcpp::Parameter> &params){
         rcl_interfaces::msg::SetParametersResult result;
         result.successful = true;
@@ -23,8 +23,8 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
         return result;
     });
 
-
     leg = new Leg(leg_param); // 创建数学解算对象
+    vmc = new VMC(296,75,5.0,0.5,0.2,0.1,20ms);   //创建VMC计算对象
 
     marker_publisher =
         this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
@@ -53,13 +53,11 @@ LegControl::~LegControl() { delete leg; }
 
 void LegControl::Show_Cb(){
 
-    auto cur_foot_pos=leg->calculateCurFootPosition();
-
     sensor_msgs::msg::JointState joint_msg;
     joint_msg.header.stamp = this->get_clock()->now();
     joint_msg.name     = {"joint1", "joint2", "joint3"};
     joint_msg.position={leg->cur_joint_rad[0],leg->cur_joint_rad[1],leg->cur_joint_rad[2]};
-    rviz_joint_publisher->publish(joint_msg);	//发布关节角度信息*/
+    rviz_joint_publisher->publish(joint_msg);	//发布关节角度信息
     
     visualization_msgs::msg::Marker dot_marker;
     dot_marker.header.frame_id = "world"; // 设置坐标系
@@ -69,9 +67,9 @@ void LegControl::Show_Cb(){
     dot_marker.type            = visualization_msgs::msg::Marker::SPHERE;
     dot_marker.action          = visualization_msgs::msg::Marker::ADD;
     
-    dot_marker.pose.position.x = cur_foot_pos[0];
-    dot_marker.pose.position.y = cur_foot_pos[1];
-    dot_marker.pose.position.z = cur_foot_pos[2];
+    dot_marker.pose.position.x = foot_pos[0];
+    dot_marker.pose.position.y = foot_pos[1];
+    dot_marker.pose.position.z = foot_pos[2];
     // 设置球体的尺寸
     dot_marker.scale.x = 0.1;
     dot_marker.scale.y = 0.1;
@@ -94,14 +92,17 @@ void LegControl::Show_Cb(){
     arraw_marker.type = visualization_msgs::msg::Marker::ARROW;
     arraw_marker.action = visualization_msgs::msg::Marker::ADD;
     geometry_msgs::msg::Point p_start;
-    p_start.x = cur_foot_pos[0];
-    p_start.y = cur_foot_pos[1];
-    p_start.z = cur_foot_pos[2];
+    p_start.x = foot_pos[0];
+    p_start.y = foot_pos[1];
+    p_start.z = foot_pos[2];
 
     geometry_msgs::msg::Point p_end;
-    p_end.x = p_start.x+f_force[0]*0.05f;
-    p_end.y = p_start.y+f_force[1]*0.05f;
-    p_end.z = p_start.z+f_force[2]*0.05f;
+    //p_end.x = p_start.x+foot_force[0]*0.05f;
+    //p_end.y = p_start.y+foot_force[1]*0.05f;
+    //p_end.z = p_start.z+foot_force[2]*0.05f;
+    p_end.x = p_start.x+foot_vel[0]*2.0;
+    p_end.y = p_start.y+foot_vel[1]*2.0;
+    p_end.z = p_start.z+foot_vel[2]*2.0;
 
     arraw_marker.points.push_back(p_start);
     arraw_marker.points.push_back(p_end);
@@ -137,17 +138,29 @@ void LegControl::Run_Cb() {
     
 
     //RCLCPP_INFO(this->get_logger(),"足端实际位置:(%f,%f,%f)",leg->calculateCurFootPosition()[0],leg->calculateCurFootPosition()[1],leg->calculateCurFootPosition()[2]);
-
-    bool arrivable;
-    auto leg_joint_target_rad = leg->calculateExpJointRad(Vector3D(0.0,0.0,0.0),&arrivable); // 计算狗腿关节空间位置
-    auto leg_joint_target_omega=leg->calculateExpJointOmega(Vector3D(0.0,0.0,0.0),Vector3D(0.0,0.0,0.0)); //计算狗腿关节空间速度
+    //重力补偿计算
     auto grivate_compen_torque=leg->calculateMassComponentsTorque();
-
     //TODO:单腿VMC
-    auto foot_force=leg->calculateCurFootForce(grivate_compen_torque);
-    double filter_gate=this->get_parameter("force_filter_gate").as_double();
-    f_force=filter_gate*f_force+(1.0f-filter_gate)*foot_force;
-    RCLCPP_INFO(this->get_logger(),"f_force=(%lf,%lf,%lf)",f_force[0],f_force[1],f_force[2]);
+    foot_pos=leg->calculateCurFootPosition();
+    foot_vel=leg->calculateCurFootVelocity();
+    foot_force=leg->calculateCurFootForce(grivate_compen_torque);
+    //double filter_gate=this->get_parameter("force_filter_gate").as_double();
+
+    std::tuple<double,double,double> vmc_target=std::make_tuple(0.0,0.0,0.0);
+    if(this->get_parameter("enable_vmc").as_bool())     //使用VMC
+    {
+        vmc_target=vmc->VMC_handle(foot_pos[2], foot_vel[2], -foot_force[2]);
+        RCLCPP_INFO(this->get_logger(),"vmc(%lf,%lf,%lf)",std::get<0>(vmc_target),std::get<1>(vmc_target),std::get<2>(vmc_target));
+    }
+
+    //计算足端位置
+    bool arrivable=false;
+    auto leg_joint_target_rad = leg->calculateExpJointRad(Vector3D(0.0,0.0,std::get<0>(vmc_target)),&arrivable); // 计算狗腿关节空间位置
+    auto leg_joint_target_omega=leg->calculateExpJointOmega(Vector3D(0.0,0.0,std::get<0>(vmc_target)),Vector3D(0.0,0.0,std::get<1>(vmc_target))); //计算狗腿关节空间速度
+    
+    RCLCPP_INFO(this->get_logger(),"足端受力(%lf,%lf,%lf)",foot_force[0],foot_force[1],foot_force[2]);
+    RCLCPP_INFO(this->get_logger(),"足端位置(%lf,%lf,%lf)",foot_pos[0],foot_pos[1],foot_pos[2]);
+    
 
 
     if (!arrivable) // 如果规划出来的轨迹是可到达的目标

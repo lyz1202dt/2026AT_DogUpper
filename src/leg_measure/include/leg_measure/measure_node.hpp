@@ -19,6 +19,8 @@ private:
     bool start_measure;
     bool is_sampling;
 
+    OnSetParametersCallbackHandle::SharedPtr param_srver_handle;
+
     rclcpp::Subscription<robot_interfaces::msg::Robot>::SharedPtr legs_state_sub;
     rclcpp::Publisher<robot_interfaces::msg::Robot>::SharedPtr legs_target_pub;
     rclcpp::TimerBase::SharedPtr target_set_timer;

@@ -41,7 +41,8 @@ src/main.cpp
 src/param.cpp
 src/leg.cpp
 src/mynode.cpp
-src/step.cpp)
+src/step.cpp
+src/vmc.cpp)
 
 
 target_include_directories(leg_calc

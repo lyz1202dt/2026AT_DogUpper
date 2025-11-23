@@ -5,6 +5,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include "leg.h"
 #include "step.h"
+#include "vmc.hpp"
 #include <rclcpp/subscription.hpp>
 #include <tuple>
 #include <Eigen/Dense>
@@ -31,6 +32,7 @@ private:
     CycloidStep_t cycloid_step;
 
     Leg *leg;
+    VMC* vmc;
 
     float leg_run_time;    //一个脚步的时间
     std::chrono::high_resolution_clock::time_point last_step_reset_time;    //上次步态重置时间点
@@ -42,9 +44,10 @@ private:
     rclcpp::Subscription<robot_interfaces::msg::Robot>::SharedPtr legs_state_sub;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr rviz_joint_publisher;
 
-    //狗腿
-    Vector3D f_force;
 
+    Vector3D foot_force;   //足端力矩
+    Vector3D foot_pos;
+    Vector3D foot_vel;
 
     //参数服务
     OnSetParametersCallbackHandle::SharedPtr param_server_handle;
