@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <mynode.h>
 
 using namespace std::chrono_literals;
@@ -6,6 +7,12 @@ using namespace std::chrono_literals;
 // 初始化狗腿参数，创建发布者
 LegControl::LegControl(LegParam_t& leg_param, std::string name)
     : Node(name) {
+
+    force_filter_gate=0.8;
+    foot_force=Vector3D(0.0,0.0,0.0);
+
+    leg = new Leg(leg_param); // 创建数学解算对象
+    vmc = new VMC(200,60,5.0,0.5,0.2,0.1,20ms);   //创建VMC计算对象
 
     this->declare_parameter("joint1_kp",2.4);
     this->declare_parameter("joint2_kp",3.2);
@@ -15,16 +22,50 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
     this->declare_parameter("joint3_kd",0.18);
     this->declare_parameter("force_filter_gate",0.8);
     this->declare_parameter("enable_vmc",false);
+    this->declare_parameter("vmc_kp",250.0);
+    this->declare_parameter("vmc_kd",60.0);
+    this->declare_parameter("vmc_mass",5.0);
     
     param_server_handle=this->add_on_set_parameters_callback([this](const std::vector<rclcpp::Parameter> &params){
         rcl_interfaces::msg::SetParametersResult result;
         result.successful = true;
-        RCLCPP_INFO(this->get_logger(),"更新参数%d个",(int)params.size());
+        RCLCPP_INFO(this->get_logger(),"更新参数",(int)params.size());
+        for(const auto &param:params)
+        {
+            if(param.get_name()=="enable_vmc")
+                enable_vmc=param.as_bool();
+            else if(param.get_name()=="joint1_kp")
+                joint1_kp=param.as_double();
+            else if(param.get_name()=="joint1_kd")
+                joint1_kd=param.as_double();
+            else if(param.get_name()=="joint2_kp")
+                joint2_kp=param.as_double();
+            else if(param.get_name()=="joint2_kd")
+                joint2_kd=param.as_double();
+            else if(param.get_name()=="joint3_kp")
+                joint3_kp=param.as_double();
+            else if(param.get_name()=="joint3_kd")
+                joint3_kd=param.as_double();
+            else if(param.get_name()=="force_filter_gate")
+                force_filter_gate=param.as_double();
+            else if(param.get_name()=="vmc_kp")
+                vmc->kp=param.as_double();
+            else if(param.get_name()=="vmc_kd")
+                vmc->kd=param.as_double();
+            else if(param.get_name()=="vmc_mass")
+                vmc->mass=param.as_double();
+        }
         return result;
     });
 
-    leg = new Leg(leg_param); // 创建数学解算对象
-    vmc = new VMC(296,75,5.0,0.5,0.2,0.1,20ms);   //创建VMC计算对象
+    joint1_kp=get_parameter("joint1_kp").as_double();
+    joint1_kd=get_parameter("joint1_kd").as_double();
+    joint2_kp=get_parameter("joint2_kp").as_double();
+    joint2_kd=get_parameter("joint2_kd").as_double();
+    joint3_kp=get_parameter("joint3_kp").as_double();
+    joint3_kd=get_parameter("joint3_kd").as_double();
+
+    
 
     marker_publisher =
         this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
@@ -49,7 +90,10 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
     move_update_timer = create_wall_timer(20ms, [this]() { Run_Cb(); });
 }
 
-LegControl::~LegControl() { delete leg; }
+LegControl::~LegControl() {
+    delete leg;
+    delete vmc;
+}
 
 void LegControl::Show_Cb(){
 
@@ -100,9 +144,9 @@ void LegControl::Show_Cb(){
     //p_end.x = p_start.x+foot_force[0]*0.05f;
     //p_end.y = p_start.y+foot_force[1]*0.05f;
     //p_end.z = p_start.z+foot_force[2]*0.05f;
-    p_end.x = p_start.x+foot_vel[0]*2.0;
-    p_end.y = p_start.y+foot_vel[1]*2.0;
-    p_end.z = p_start.z+foot_vel[2]*2.0;
+    p_end.x = p_start.x+foot_force[0]*0.05;
+    p_end.y = p_start.y+foot_force[1]*0.05;
+    p_end.z = p_start.z+leg_virtual_force*0.05;
 
     arraw_marker.points.push_back(p_start);
     arraw_marker.points.push_back(p_end);
@@ -119,6 +163,8 @@ void LegControl::Show_Cb(){
     arraw_marker.lifetime = rclcpp::Duration(0, 0);
 
     marker_publisher->publish(arraw_marker);    //发布箭头标记（狗腿足端受力）*/
+
+    RCLCPP_INFO(get_logger(),"kp=%lf,kd=%lf,mass=%lf",vmc->kp,vmc->kd,vmc->mass);
 }
 
 void LegControl::Run_Cb() {
@@ -143,13 +189,16 @@ void LegControl::Run_Cb() {
     //TODO:单腿VMC
     foot_pos=leg->calculateCurFootPosition();
     foot_vel=leg->calculateCurFootVelocity();
-    foot_force=leg->calculateCurFootForce(grivate_compen_torque);
-    //double filter_gate=this->get_parameter("force_filter_gate").as_double();
+    auto raw_foot_force=leg->calculateCurFootForce(grivate_compen_torque);
+    RCLCPP_INFO(get_logger(),"足端原始受力%lf",raw_foot_force[2]);
 
+    if(raw_foot_force[2]>-50.0&&raw_foot_force[2]<50.0)         //排除计算异常的情况
+        foot_force[2]=0.8*foot_force[2]+0.2*raw_foot_force[2];
     std::tuple<double,double,double> vmc_target=std::make_tuple(0.0,0.0,0.0);
-    if(this->get_parameter("enable_vmc").as_bool())     //使用VMC
+    if(enable_vmc)     //使用VMC
     {
-        vmc_target=vmc->VMC_handle(0.0,foot_pos[2], 0.0,foot_vel[2], -foot_force[2]);
+        vmc_target=vmc->targetUpdate(0.0,foot_pos[2],0.0, foot_vel[2], -foot_force[2]);
+        leg_virtual_force=std::get<2>(vmc_target);
         RCLCPP_INFO(this->get_logger(),"vmc(%lf,%lf,%lf)",std::get<0>(vmc_target),std::get<1>(vmc_target),std::get<2>(vmc_target));
     }
 
@@ -157,10 +206,9 @@ void LegControl::Run_Cb() {
     bool arrivable=false;
     auto leg_joint_target_rad = leg->calculateExpJointRad(Vector3D(0.0,0.0,std::get<0>(vmc_target)),&arrivable); // 计算狗腿关节空间位置
     auto leg_joint_target_omega=leg->calculateExpJointOmega(Vector3D(0.0,0.0,std::get<0>(vmc_target)),Vector3D(0.0,0.0,std::get<1>(vmc_target))); //计算狗腿关节空间速度
-    
+    //auto leg_vmc_torque=leg->calculateFootForceTorque(Vector3D(0.0,0.0,std::get<0>(vmc_target)), Vector3D(0.0,0.0,std::get<2>(vmc_target)));
     RCLCPP_INFO(this->get_logger(),"足端受力(%lf,%lf,%lf)",foot_force[0],foot_force[1],foot_force[2]);
     RCLCPP_INFO(this->get_logger(),"足端位置(%lf,%lf,%lf)",foot_pos[0],foot_pos[1],foot_pos[2]);
-    
 
 
     if (!arrivable) // 如果规划出来的轨迹是可到达的目标
@@ -175,9 +223,9 @@ void LegControl::Run_Cb() {
     joint_msg_driver.legs[2].joints[0].omega = (float)leg_joint_target_omega[0];
     joint_msg_driver.legs[2].joints[1].omega = (float)leg_joint_target_omega[1];
     joint_msg_driver.legs[2].joints[2].omega = (float)leg_joint_target_omega[2];
-    joint_msg_driver.legs[2].joints[0].torque = (float)grivate_compen_torque[0];
-    joint_msg_driver.legs[2].joints[1].torque = (float)grivate_compen_torque[1];
-    joint_msg_driver.legs[2].joints[2].torque = (float)grivate_compen_torque[2];
+    joint_msg_driver.legs[2].joints[0].torque = (float)grivate_compen_torque[0];//-leg_vmc_torque[0];
+    joint_msg_driver.legs[2].joints[1].torque = (float)grivate_compen_torque[1];//-leg_vmc_torque[1];
+    joint_msg_driver.legs[2].joints[2].torque = (float)grivate_compen_torque[2];//-leg_vmc_torque[2];
     joint_msg_driver.legs[2].joints[0].kp = (float)this->get_parameter("joint1_kp").as_double();
     joint_msg_driver.legs[2].joints[1].kp = (float)this->get_parameter("joint2_kp").as_double();
     joint_msg_driver.legs[2].joints[2].kp = (float)this->get_parameter("joint3_kp").as_double();

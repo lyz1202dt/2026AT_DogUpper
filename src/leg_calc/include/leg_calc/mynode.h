@@ -34,6 +34,17 @@ private:
     Leg *leg;
     VMC* vmc;
 
+    double leg_virtual_force;
+
+    bool enable_vmc{false};
+    double force_filter_gate{0.8};
+    double joint1_kp;
+    double joint1_kd;
+    double joint2_kp;
+    double joint2_kd;
+    double joint3_kp;
+    double joint3_kd;
+
     float leg_run_time;    //一个脚步的时间
     std::chrono::high_resolution_clock::time_point last_step_reset_time;    //上次步态重置时间点
     
