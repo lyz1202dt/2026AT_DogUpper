@@ -37,3 +37,9 @@ std::tuple<double,double,double> VMC::targetUpdate(double exp_pos,double cur_pos
     // 6. 返回虚拟位置、虚拟速度、期望力
     return std::make_tuple(virtual_pos, virtual_vel, acc);
 }
+
+void VMC::reset(double virtual_pos,double virtual_vel)
+{
+    this->virtual_pos=virtual_pos;
+    this->virtual_vel=virtual_vel;
+}
