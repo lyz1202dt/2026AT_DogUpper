@@ -22,8 +22,8 @@ LegControl::LegControl(LegParam_t& leg_param, std::string name)
     this->declare_parameter("joint3_kd",0.18);
     this->declare_parameter("force_filter_gate",0.8);
     this->declare_parameter("enable_vmc",false);
-    this->declare_parameter("vmc_kp",250.0);
-    this->declare_parameter("vmc_kd",60.0);
+    this->declare_parameter("vmc_kp",350.0);
+    this->declare_parameter("vmc_kd",50.0);
     this->declare_parameter("vmc_mass",5.0);
     
     param_server_handle=this->add_on_set_parameters_callback([this](const std::vector<rclcpp::Parameter> &params){
@@ -209,7 +209,6 @@ void LegControl::Run_Cb() {
     //auto leg_vmc_torque=leg->calculateFootForceTorque(Vector3D(0.0,0.0,std::get<0>(vmc_target)), Vector3D(0.0,0.0,std::get<2>(vmc_target)));
     RCLCPP_INFO(this->get_logger(),"足端受力(%lf,%lf,%lf)",foot_force[0],foot_force[1],foot_force[2]);
     RCLCPP_INFO(this->get_logger(),"足端位置(%lf,%lf,%lf)",foot_pos[0],foot_pos[1],foot_pos[2]);
-
 
     if (!arrivable) // 如果规划出来的轨迹是可到达的目标
     {

@@ -35,5 +35,5 @@ std::tuple<double,double,double> VMC::targetUpdate(double exp_pos,double cur_pos
     virtual_vel = std::clamp(virtual_vel, -max_vel, max_vel);
 
     // 6. 返回虚拟位置、虚拟速度、期望力
-    return std::make_tuple(virtual_pos, virtual_vel, virtual_force);
+    return std::make_tuple(virtual_pos, virtual_vel, acc);
 }
